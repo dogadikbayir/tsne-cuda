@@ -134,7 +134,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                         opt.magnitude_factor, num_points, num_neighbors);
 
     const int num_nonzero = sparse_pij_device.size();
-
+    
+    
     // Clean up memory
     knn_indices_device.clear();
     knn_indices_device.shrink_to_fit();
@@ -155,6 +156,26 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
     END_IL_TIMER(_time_symmetry);
     START_IL_TIMER();
+    
+    //Dump Pij
+    std::vector<float> stl_pij_vals(sparse_pij_device.size());
+    thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
+    std::vector<int> stl_pij_coo(coo_indices_device.size());
+    thrust::copy(coo_indices_device.begin(), coo_indices_device.end(), stl_pij_coo.begin());
+    
+    if (opt.verbosity > 0) {
+        std::ofstream pij_file;
+        pij_file.open("./pij.txt");
+        pij_file << "Values:\n";
+        //dump the values of sparse array Pij
+        for (const auto &e : stl_pij_vals) pij_file << e << " ";
+        //dump the indices of the values of Pij (COO format)
+        pij_file << "\nIndices:\n";
+        for (const auto &e : stl_pij_coo) pij_file << e << " ";
+
+        pij_file.close();
+
+    }
 
     if (opt.verbosity > 0) {
         std::cout << "done.\nInitializing low dim points... " << std::flush;
@@ -168,7 +189,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::normal_distribution<float> distribution1(0.0, 1.0);
     thrust::host_vector<float> h_points_device(num_points * 2);
 
-
+    
     // Initialize random noise vector
     for (int i = 0; i < h_points_device.size(); i++) h_points_device[i] = 0.001 * distribution1(generator);
     thrust::copy(h_points_device.begin(), h_points_device.end(), random_vector_device.begin());

@@ -27,7 +27,7 @@ struct copy_idx_func : public thrust::unary_function<unsigned, unsigned>
 //Split string
 std::vector<std::string> split (std::string s, std::string delimiter) {
     size_t pos_start = 0, pos_end, delim_len = delimiter.length();
-    string token;
+    std::string token;
     std::vector<std::string> res;
 
     while ((pos_end = s.find (delimiter, pos_start)) != std::string::npos) {
@@ -192,11 +192,11 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<unsigned> perm;
     
     std::string line;
-    ifstream myfile ("./perm.txt");
+    fstream myfile ("./perm.txt");
     if (myfile.is_open())
     {
       getline(myfile, line);
-      std::vector<string> perms = split(line, " ");
+      std::vector<std::string> perms = split(line, " ");
       for (auto i : perms) {
         perm.push_back((unsigned)atoi(i.c_str()));
         
@@ -216,12 +216,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //permute the indices
     thrust::copy_n(thrust::make_permutation_iterator(coo_indices_device.begin(),
           thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
-            copy_idx_func(cols, thrust::raw_pointer_cast(d_perm.data())))),
+            copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
         coo_indices_device.size(), reord_coo_device );
     //permute the values
     thrust::copy_n(thrust::make_permutation_iterator(sparse_pij_device.begin(),
           thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
-            copy_idx_func(cols, thrust::raw_pointer_cast(d_perm.data())))),
+            copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
         sparse_pij_device.size(), reord_pij_device );
 
     //dump permuted pij
@@ -230,7 +230,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         stl_reordered_coo.begin());
 
     std::vector<float> stl_reordered_pij(sparse_pij_device.size());
-    thrust::copy(reord_pij_device.begin, reord_pij_device.end(),
+    thrust::copy(reord_pij_device.begin(), reord_pij_device.end(),
         stl_reordered_pij.begin());
 
     //Dump Pij

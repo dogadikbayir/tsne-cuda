@@ -25,10 +25,10 @@ struct copy_idx_func : public thrust::unary_function<unsigned, unsigned>
     }
 };
 //Split string
-vector<string> split (string s, string delimiter) {
+std::vector<std::string> split (std::string s, std::string delimiter) {
     size_t pos_start = 0, pos_end, delim_len = delimiter.length();
     string token;
-    vector<string> res;
+    std::vector<std::string> res;
 
     while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
         token = s.substr (pos_start, pos_end - pos_start);

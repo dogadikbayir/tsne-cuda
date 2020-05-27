@@ -9,6 +9,36 @@
 #define END_IL_TIMER(x) stop = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); x += duration; total_time += duration;
 #define PRINT_IL_TIMER(x) std::cout << #x << ": " << ((float) x.count()) / 1000000.0 << "s" << std::endl
 
+
+//Custom comparator for permuting a thrust vector
+struct copy_idx_func : public thrust::unary_function<unsigned, unsigned>
+{
+  size_t c;
+  unsigned *p;
+  copy_idx_func(const size_t _c, unsigned *_p) : c(_c), p(_p) {};
+  __host__ __device__
+    unsigned operator()(unsigned idx) {
+      unsigned myrow = idx/c;
+      unsigned newrow = p[myrow] - 1;
+      unsigned mycol = idx%c;
+      return newrow*c+mycol;
+    }
+};
+//Split string
+vector<string> split (string s, string delimiter) {
+    size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+    string token;
+    vector<string> res;
+
+    while ((pos_end = s.find (delimiter, pos_start)) != string::npos) {
+        token = s.substr (pos_start, pos_end - pos_start);
+        pos_start = pos_end + delim_len;
+        res.push_back (token);
+    }
+
+    res.push_back (s.substr (pos_start));
+    return res;
+}
 void tsnecuda::RunTsne(tsnecuda::Options &opt,
                        tsnecuda::GpuOptions &gpu_opt)
 {
@@ -157,6 +187,52 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     END_IL_TIMER(_time_symmetry);
     START_IL_TIMER();
     
+        
+        //Re-order pij vals and coo indices
+    std::vector<unsigned> perm;
+    
+    std::string line;
+    ifstream myfile ("./perm.txt");
+    if (myfile.is_open())
+    {
+      getline(myfile, line);
+      std::vector<string> perms = split(line, " ");
+      for (auto i : perms) {
+        perm.push_back((unsigned)atoi(i.c_str()));
+        
+      }       
+      //std::cout << std::endl << "Read the perm vector: " << std::endl;
+      //for (auto p : perm) std::cout << p << " ";
+
+      //std::cout << std::endl;
+      
+    }
+    thrust::device_vector<unsigned> d_perm(perm);
+    thrust::device_vector<int> reord_coo_device(coo_indices_device.size());
+    thrust::device_vector<float> reord_pij_device(sparse_pij_device.size());
+    
+            
+
+    //permute the indices
+    thrust::copy_n(thrust::make_permutation_iterator(coo_indices_device.begin(),
+          thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
+            copy_idx_func(cols, thrust::raw_pointer_cast(d_perm.data())))),
+        coo_indices_device.size(), reord_coo_device );
+    //permute the values
+    thrust::copy_n(thrust::make_permutation_iterator(sparse_pij_device.begin(),
+          thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
+            copy_idx_func(cols, thrust::raw_pointer_cast(d_perm.data())))),
+        sparse_pij_device.size(), reord_pij_device );
+
+    //dump permuted pij
+    std::vector<int> stl_reordered_coo(coo_indices_device.size());
+    thrust::copy(reord_coo_device.begin(), reord_coo_device.end(),
+        stl_reordered_coo.begin());
+
+    std::vector<float> stl_reordered_pij(sparse_pij_device.size());
+    thrust::copy(reord_pij_device.begin, reord_pij_device.end(),
+        stl_reordered_pij.begin());
+
     //Dump Pij
     std::vector<float> stl_pij_vals(sparse_pij_device.size());
     thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
@@ -166,12 +242,14 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.verbosity > 0) {
         std::ofstream pij_file;
         pij_file.open("./pij.txt");
-        pij_file << "Values:\n";
         //dump the values of sparse array Pij
         for (const auto &e : stl_pij_vals) pij_file << e << " ";
         //dump the indices of the values of Pij (COO format)
-        pij_file << "\nIndices:\n";
         for (const auto &e : stl_pij_coo) pij_file << e << " ";
+        //dump reordered values of sparse array pij
+        for(const auto &e : stl_reordered_pij) pij_file << e << " ";
+        //dump the reordered indices of the values of Pij
+        for(const auto &e : stl_reordered_coo) pij_file << e << " ";
 
         pij_file.close();
 

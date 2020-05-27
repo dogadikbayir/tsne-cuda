@@ -25,12 +25,18 @@
 #include "include/kernels/perplexity_search.h"
 #include "include/kernels/nbodyfft.h"
 #include "include/kernels/rep_forces.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <vector>
 
 #ifndef NO_ZMQ
     #include <zmq.hpp>
 #endif
 
 namespace tsnecuda {
+std::vector<std::string> split(std::string str, std::string del );
 void RunTsne(tsnecuda::Options &opt, tsnecuda::GpuOptions &gpu_opt);
 }
 

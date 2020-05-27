@@ -217,12 +217,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     thrust::copy_n(thrust::make_permutation_iterator(coo_indices_device.begin(),
           thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
             copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
-        coo_indices_device.size(), reord_coo_device );
+        coo_indices_device.size(), reord_coo_device.begin() );
     //permute the values
     thrust::copy_n(thrust::make_permutation_iterator(sparse_pij_device.begin(),
           thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
-            copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
-        sparse_pij_device.size(), reord_pij_device );
+            copy_idx_func(1, thrust::raw_pointer_cast(d_perm.data())))),
+        sparse_pij_device.size(), reord_pij_device.begin() );
 
     //dump permuted pij
     std::vector<int> stl_reordered_coo(coo_indices_device.size());

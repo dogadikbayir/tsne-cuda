@@ -255,6 +255,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
     }
 
+    sparse_pij_device = reord_pij_device;
+    coo_indices_device = reord_coo_device;
+    reord_coo_device.clear();
+    reord_coo_device.shrink_to_fit();
+    reord_pij_device.clear();
+    reord_pij_device.shrink_to_fit();
+
     if (opt.verbosity > 0) {
         std::cout << "done.\nInitializing low dim points... " << std::flush;
     }

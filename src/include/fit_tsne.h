@@ -25,11 +25,6 @@
 #include "include/kernels/perplexity_search.h"
 #include "include/kernels/nbodyfft.h"
 #include "include/kernels/rep_forces.h"
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <vector>
 
 #ifndef NO_ZMQ
     #include <zmq.hpp>

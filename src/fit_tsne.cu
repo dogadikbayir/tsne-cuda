@@ -192,10 +192,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<unsigned> perm;
     
     std::string line;
-    fstream myfile ("./perm.txt");
+    std::ifstream myfile ("./perm.txt");
     if (myfile.is_open())
     {
-      getline(myfile, line);
+      std::getline(myfile, line);
       std::vector<std::string> perms = split(line, " ");
       for (auto i : perms) {
         perm.push_back((unsigned)atoi(i.c_str()));

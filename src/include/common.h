@@ -56,6 +56,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <cmath>
+#include <string>
 
 
 #endif

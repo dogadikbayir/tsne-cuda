@@ -233,7 +233,13 @@ void tsnecuda::util::Csr2CooKernel(volatile int * __restrict__ coo_indices,
     coo_indices[2*TID] = i;
     coo_indices[2*TID+1] = j;
 }
-
+/*
+void tsnecuda::util::permuteMat(tsnecuda::GPUOptions &gpu_opt,
+                                thrust::device_vector<int> &coo_indices,
+                                thrust::device_vector<unsigned> &perm,
+                                thrust::device_vector<float> &pij_sparse ) {
+    
+}*/
 void tsnecuda::util::Csr2Coo(tsnecuda::GpuOptions &gpu_opt,
                              thrust::device_vector<int> &coo_indices,
                              thrust::device_vector<int> &pij_row_ptr,

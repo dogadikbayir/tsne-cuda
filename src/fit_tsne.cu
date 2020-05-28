@@ -188,57 +188,41 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     START_IL_TIMER();
     
         
-        //Re-order pij vals and coo indices
-    std::vector<unsigned> perm;
-    
-    std::string line;
-    std::ifstream myfile ("./perm.txt");
-    if (myfile.is_open())
-    {
-      std::getline(myfile, line);
-      std::vector<std::string> perms = split(line, " ");
-      for (auto i : perms) {
-        perm.push_back((unsigned)atoi(i.c_str()));
-        
-      }       
-      //std::cout << std::endl << "Read the perm vector: " << std::endl;
-      //for (auto p : perm) std::cout << p << " ";
-
-      //std::cout << std::endl;
-      
-    }
-    thrust::device_vector<unsigned> d_perm(perm);
-    thrust::device_vector<int> reord_coo_device(coo_indices_device.size());
-    thrust::device_vector<float> reord_pij_device(sparse_pij_device.size());
+        //thrust::device_vector<unsigned> d_perm(perm);
+    //thrust::device_vector<int> reord_coo_device(coo_indices_device.size());
+    //thrust::device_vector<float> reord_pij_device(sparse_pij_device.size());
     
             
+    //Re-populate pij coo indices
+    
 
     //permute the indices
-    thrust::copy_n(thrust::make_permutation_iterator(coo_indices_device.begin(),
-          thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
-            copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
-        coo_indices_device.size(), reord_coo_device.begin() );
+    //thrust::copy_n(thrust::make_permutation_iterator(coo_indices_device.begin(),
+      //    thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
+        //    copy_idx_func(2, thrust::raw_pointer_cast(d_perm.data())))),
+        //coo_indices_device.size(), reord_coo_device.begin() );
     //permute the values
-    thrust::copy_n(thrust::make_permutation_iterator(sparse_pij_device.begin(),
-          thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
-            copy_idx_func(1, thrust::raw_pointer_cast(d_perm.data())))),
-        sparse_pij_device.size(), reord_pij_device.begin() );
+    //thrust::copy_n(thrust::make_permutation_iterator(sparse_pij_device.begin(),
+      //    thrust::make_transform_iterator(thrust::counting_iterator<unsigned>(0),
+        //    copy_idx_func(1, thrust::raw_pointer_cast(d_perm.data())))),
+        //sparse_pij_device.size(), reord_pij_device.begin() );
 
-    //dump permuted pij
-    std::vector<int> stl_reordered_coo(coo_indices_device.size());
-    thrust::copy(reord_coo_device.begin(), reord_coo_device.end(),
-        stl_reordered_coo.begin());
+    ///dump permuted pij
+   // std::vector<int> stl_reordered_coo(coo_indices_device.size());
+  //  thrust::copy(reord_coo_device.begin(), reord_coo_device.end(),
+//        stl_reordered_coo.begin());
 
-    std::vector<float> stl_reordered_pij(sparse_pij_device.size());
-    thrust::copy(reord_pij_device.begin(), reord_pij_device.end(),
-        stl_reordered_pij.begin());
+    //std::vector<float> stl_reordered_pij(sparse_pij_device.size());
+    //thrust::copy(reord_pij_device.begin(), reord_pij_device.end(),
+      //  stl_reordered_pij.begin());
 
     //Dump Pij
-    std::vector<float> stl_pij_vals(sparse_pij_device.size());
-    thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
-    std::vector<int> stl_pij_coo(coo_indices_device.size());
-    thrust::copy(coo_indices_device.begin(), coo_indices_device.end(), stl_pij_coo.begin());
+    //std::vector<float> stl_pij_vals(sparse_pij_device.size());
+    //thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
+    //std::vector<int> stl_pij_coo(coo_indices_device.size());
+    //thrust::copy(coo_indices_device.begin(), coo_indices_device.end(), stl_pij_coo.begin());
     
+
     if (opt.verbosity > 0) {
         std::ofstream pij_file;
         pij_file.open("./pij.txt");
@@ -247,23 +231,61 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         //dump the indices of the values of Pij (COO format)
         for (const auto &e : stl_pij_coo) pij_file << e << " ";
         //dump reordered values of sparse array pij
-        for(const auto &e : stl_reordered_pij) pij_file << e << " ";
+        //for(const auto &e : stl_reordered_pij) pij_file << e << " ";
         //dump the reordered indices of the values of Pij
-        for(const auto &e : stl_reordered_coo) pij_file << e << " ";
+        //for(const auto &e : stl_reordered_coo) pij_file << e << " ";
 
         pij_file.close();
 
     }
+    //Re-order pij vals and coo indices
+    
+    std::vector<float> pij_re;
+    std::vector<int> coo_re;
+    
+    std::string line;
+    std::ifstream myfile ("./pij_re.txt");
+    if (myfile.is_open())
+    {
+      std::getline(myfile, line);
+      std::vector<std::string> perms = split(line, " ");
+      for (auto i : perms) {
+        pij_re.push_back(atof(i.c_str()));
+        
+      }       
+      //std::cout << std::endl << "Read the perm vector: " << std::endl;
+      //for (auto p : perm) std::cout << p << " ";
 
-    sparse_pij_device = reord_pij_device;
-    coo_indices_device = reord_coo_device;
-    reord_coo_device.clear();
-    reord_coo_device.shrink_to_fit();
-    reord_pij_device.clear();
-    reord_pij_device.shrink_to_fit();
+      //std::cout << std::endl;
+      
+    }
+    
+    std::ifstream myfile2 ("./coo_re.txt");
+    if (myfile2.is_open())
+    {
+      std::getline(myfile2, line);
+      std::vector<std::string> perms = split(line, " ");
+      for (auto i : perms) {
+        coo_re.push_back(atoi(i.c_str()));
+      }
+    }
+    
+    //Copy host data to device
+    thrust::device_vector<int> d_coo_re(coo_re);
+    thrust::device_vector<float> d_sp_pij_re(pij_re);
+    //sparse_pij_device = reord_pij_device;
+    //coo_indices_device = reord_coo_device;
+    //reord_coo_device.clear();
+    //reord_coo_device.shrink_to_fit();
+    //reord_pij_device.clear();
+    //reord_pij_device.shrink_to_fit();
+    
 
     if (opt.verbosity > 0) {
         std::cout << "done.\nInitializing low dim points... " << std::flush;
+        //std::ifstream re_pij;
+        //re_pij.open("./re_pij.txt");
+
     }
 
     // Initialize Low-Dim Points
@@ -527,10 +549,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
-                                              sparse_pij_device,
+                                              //sparse_pij_device,
+                                              d_sp_pij_re,
                                               pij_row_ptr_device,
                                               pij_col_ind_device,
-                                              coo_indices_device,
+                                              //coo_indices_device,
+                                              d_coo_re,
                                               points_device,
                                               ones_device,
                                               num_points,

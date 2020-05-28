@@ -217,10 +217,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //  stl_reordered_pij.begin());
 
     //Dump Pij
-    //std::vector<float> stl_pij_vals(sparse_pij_device.size());
-    //thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
-    //std::vector<int> stl_pij_coo(coo_indices_device.size());
-    //thrust::copy(coo_indices_device.begin(), coo_indices_device.end(), stl_pij_coo.begin());
+    std::vector<float> stl_pij_vals(sparse_pij_device.size());
+    thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
+    std::vector<int> stl_pij_coo(coo_indices_device.size());
+    thrust::copy(coo_indices_device.begin(), coo_indices_device.end(), stl_pij_coo.begin());
     
 
     if (opt.verbosity > 0) {

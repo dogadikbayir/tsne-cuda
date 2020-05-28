@@ -29,7 +29,7 @@ TsneConfig = namedtuple(
      'force_magnify_iters', 'perplexity_search_epsilon', 'pre_exaggeration_momentum',
      'post_exaggeration_momentum', 'theta', 'epssq', 'min_gradient_norm', 'initialization_type',
      'preinit_data', 'dump_points', 'dump_file', 'dump_interval', 'use_interactive',
-     'viz_server', 'viz_timeout', 'verbosity', 'print_interval', 'gpu_device', 'return_style',
+     'viz_server', 'viz_timeout', 'verbosity', 'reorder', 'print_interval', 'gpu_device', 'return_style',
      'num_snapshots'])
 
 
@@ -55,6 +55,7 @@ class TSNE(object):
                  return_style='once',
                  num_snapshots=5,
                  verbose=0,
+                 reorder=1,
                  random_seed=None,
                  use_interactive=False,
                  viz_timeout=10000,
@@ -89,6 +90,7 @@ class TSNE(object):
         self.metric = metric
         self.init = init
         self.verbosity = int(verbose)
+        self.reorder = int(reorder)
 
         # Initialize non-sklearn variables
         self.num_neighbors = int(num_neighbors)
@@ -154,6 +156,7 @@ class TSNE(object):
             viz_server=N.ctypeslib.ndpointer(N.uint8, flags='ALIGNED, CONTIGUOUS'),
             viz_timeout=c_int,
             verbosity=c_int,
+            reorder=c_int,
             print_interval=c_int,
             gpu_device=c_int,
             return_style=c_int,
@@ -222,6 +225,7 @@ class TSNE(object):
             viz_server=ord_string(self.viz_server),
             viz_timeout=c_int(self.viz_timeout),
             verbosity=c_int(self.verbosity),
+            reorder=c_int(self.verbosity),
             print_interval=c_int(self.print_interval),
             gpu_device=c_int(self.gpu_device),
             return_style=c_int(self.return_style),

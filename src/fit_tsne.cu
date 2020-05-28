@@ -545,7 +545,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
         // Calculate Attractive Forces
-        tsnecuda::ComputeAttractiveForces(gpu_opt,
+        if(opt.reorder == 1) {
+          tsnecuda::ComputeAttractiveForces(gpu_opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
@@ -559,7 +560,24 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               ones_device,
                                               num_points,
                                               num_nonzero);
+        }
+        else {
+          tsnecuda::ComputeAttractiveForces(gpu_opt,
+                                              sparse_handle,
+                                              sparse_matrix_descriptor,
+                                              attractive_forces_device,
+                                              sparse_pij_device,
+                                              //d_sp_pij_re,
+                                              pij_row_ptr_device,
+                                              pij_col_ind_device,
+                                              coo_indices_device,
+                                              //d_coo_re,
+                                              points_device,
+                                              ones_device,
+                                              num_points,
+                                              num_nonzero);
 
+        }
         END_IL_TIMER(_time_attr);
         START_IL_TIMER();
 

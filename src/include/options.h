@@ -64,6 +64,7 @@ namespace tsnecuda {
 
             // Verbosity control
             int verbosity = 20;
+            int reorder = 1;
             int print_interval= 10;
 
             // Return methods
@@ -90,7 +91,7 @@ namespace tsnecuda {
                     TSNE_INIT initialization, float* preinit_data,
                     bool dump_points, int dump_interval,
                     RETURN_STYLE return_style, float* return_data, int num_snapshots,
-                    bool use_interactive, std::string viz_server,
+                    bool use_interactive, std::string viz_server, int reorder,
                     int verbosity, int print_interval
                     ) :
                     points(points),
@@ -118,6 +119,7 @@ namespace tsnecuda {
                     num_snapshots(num_snapshots),
                     use_interactive(use_interactive),
                     viz_server(viz_server),
+                    reorder(reorder),
                     verbosity(verbosity),
                     print_interval(print_interval)
                     {this->random_seed = time(NULL);}

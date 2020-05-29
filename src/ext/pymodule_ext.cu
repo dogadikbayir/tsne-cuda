@@ -32,7 +32,8 @@ void pymodule_tsne(float *result,
                    int print_interval,
                    int gpu_device,
                    int return_style,
-                   int num_snapshots)
+                   int num_snapshots,
+                   int reorder)
 {
     // Extract the dimensions of the points array
     ssize_t num_points = dims[0];
@@ -61,7 +62,7 @@ void pymodule_tsne(float *result,
     opt.min_gradient_norm = min_gradient_norm;
     opt.verbosity = verbosity;
     opt.print_interval = print_interval;
-
+    opt.reorder = reorder;
     // Initialization
     switch (initialization_type) {
         case 0:

@@ -56,7 +56,8 @@ void pymodule_tsne(float *result,
                    int print_interval,
                    int gpu_device,
                    int return_style,
-                   int num_snapshots);
+                   int num_snapshots,
+                   int reorder);
 
 }
 

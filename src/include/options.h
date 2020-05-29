@@ -91,8 +91,8 @@ namespace tsnecuda {
                     TSNE_INIT initialization, float* preinit_data,
                     bool dump_points, int dump_interval,
                     RETURN_STYLE return_style, float* return_data, int num_snapshots,
-                    bool use_interactive, std::string viz_server, int reorder,
-                    int verbosity, int print_interval
+                    bool use_interactive, std::string viz_server,
+                    int verbosity, int print_interval, int reorder
                     ) :
                     points(points),
                     num_points(num_points),
@@ -119,9 +119,9 @@ namespace tsnecuda {
                     num_snapshots(num_snapshots),
                     use_interactive(use_interactive),
                     viz_server(viz_server),
-                    reorder(reorder),
                     verbosity(verbosity),
-                    print_interval(print_interval)
+                    print_interval(print_interval),
+                    reorder(reorder)
                     {this->random_seed = time(NULL);}
 
             bool enable_dump(std::string filename, int interval = 1) {

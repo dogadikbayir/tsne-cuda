@@ -479,6 +479,9 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
 
     END_IL_TIMER(_time_init_fft);
+
+    //create vector to record rep force computation time
+    std::vector<float> rep_force_times;
     // Support for infinite iteration
     for (size_t step = 0; step != opt.iterations; step++) {
 
@@ -519,7 +522,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         END_IL_TIMER(_time_precompute_2d);
         START_IL_TIMER();
 
-
+        
         tsnecuda::NbodyFFT2D(
             plan_dft, plan_idft,
             N, n_terms, n_boxes_per_dim, n_interpolation_points,
@@ -533,6 +536,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             y_interpolated_values_device, potentialsQij_device);
 
         END_IL_TIMER(_time_nbodyfft);
+        rep_force_times.push_back(((float)duration.count()) / 1000000.0)
         START_IL_TIMER();
 
         // Make the negative term, or F_rep in the equation 3 of the paper
@@ -685,6 +689,21 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     // Handle snapshoting
     if (opt.return_style == tsnecuda::RETURN_STYLE::SNAPSHOT && opt.return_data != nullptr) {
       thrust::copy(points_device.begin(), points_device.end(), snap_num*opt.num_points*2 + opt.return_data);
+    }
+    if (opt.verbosity > 0) {
+        std::ofstream reptimes_file;
+        pij_file.open("./reptimes.txt");
+        //dump the values of sparse array Pij
+        for (const auto &e : rep_force_times) reptimes_file << e << " ";
+        //dump the indices of the values of Pij (COO format)
+        //for (const auto &e : stl_pij_coo) pij_file << e << " ";
+        //dump reordered values of sparse array pij
+        //for(const auto &e : stl_reordered_pij) pij_file << e << " ";
+        //dump the reordered indices of the values of Pij
+        //for(const auto &e : stl_reordered_coo) pij_file << e << " ";
+
+        reptimes_file.close();
+
     }
 
     // Return some final values

@@ -243,16 +243,16 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<float> pij_re;
     std::vector<int> coo_re;
     if(opt.reorder==1) {
-       std::string line;
-    std::ifstream myfile ("./pij_re_" + std::to_string(opt.num_points/1000) + ".txt");
-    if (myfile.is_open())
-    {
-      std::getline(myfile, line);
-      std::vector<std::string> perms = split(line, " ");
-      for (auto i : perms) {
-        pij_re.push_back(atof(i.c_str()));
+      std::string line;
+      std::ifstream myfile ("./pij_re_" + std::to_string(opt.num_points/1000) + ".txt");
+      if (myfile.is_open())
+      {
+        std::getline(myfile, line);
+        std::vector<std::string> perms = split(line, " ");
+        for (auto i : perms) {
+          pij_re.push_back(atof(i.c_str()));
         
-      }       
+        }       
       //std::cout << std::endl << "Read the perm vector: " << std::endl;
       //for (auto p : perm) std::cout << p << " ";
 
@@ -273,9 +273,15 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
        
     //Copy host data to device
-    thrust::device_vector<int> d_coo_re(coo_re);
-    thrust::device_vector<float> d_sp_pij_re(pij_re);
-    //sparse_pij_device = reord_pij_device;
+    thrust::device_vector<int> d_coo_re;
+    thrust::device_vector<float> d_sp_pij_re;
+
+    if(opt.reorder==1){
+      d_coo_re = coo_re;
+      d_sp_pij_re = pij_re;
+    
+    }
+   //sparse_pij_device = reord_pij_device;
     //coo_indices_device = reord_coo_device;
     //reord_coo_device.clear();
     //reord_coo_device.shrink_to_fit();

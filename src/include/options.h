@@ -25,8 +25,8 @@ namespace tsnecuda {
 
         private:
             // Dump Points Output
-            bool dump_points = false;
-            int dump_interval = -1;
+            bool dump_points = true;
+            int dump_interval = 100;
             std::string dump_file = "";
 
             // Visualization

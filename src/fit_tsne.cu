@@ -225,7 +225,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
     if (opt.verbosity > 0) {
         std::ofstream pij_file;
-        pij_file.open("./pij.txt");
+        pij_file.open("./pij_" + std::to_string(opt.num_points/1000) + ".txt");
         //dump the values of sparse array Pij
         for (const auto &e : stl_pij_vals) pij_file << e << " ";
         //dump the indices of the values of Pij (COO format)
@@ -244,7 +244,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<int> coo_re;
     
     std::string line;
-    std::ifstream myfile ("./pij_re.txt");
+    std::ifstream myfile ("./pij_re_" + std::to_string(opt.num_points/1000) + ".txt");
     if (myfile.is_open())
     {
       std::getline(myfile, line);
@@ -260,7 +260,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       
     }
     
-    std::ifstream myfile2 ("./coo_re.txt");
+    std::ifstream myfile2 ("./coo_re_" + std::to_string(opt.num_points/1000) + ".txt");
     if (myfile2.is_open())
     {
       std::getline(myfile2, line);
@@ -432,7 +432,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     float *host_ys = nullptr;
     std::ofstream dump_file;
     if (opt.get_dump_points()) {
-        dump_file.open(opt.get_dump_file());
+        dump_file.open("pts_Y_" + std::to_string(opt.num_points));
         host_ys = new float[num_points * 2];
         dump_file << num_points << " " << 2 << std::endl;
     }
@@ -692,7 +692,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
     if (opt.verbosity > 0) {
         std::ofstream reptimes_file;
-        reptimes_file.open("./reptimes.txt");
+        reptimes_file.open("./reptimes_" + std::to_string(opt.num_points/1000) + ".txt");
         //dump the values of sparse array Pij
         for (const auto &e : rep_force_times) reptimes_file << e << " ";
         //dump the indices of the values of Pij (COO format)
@@ -705,7 +705,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         reptimes_file.close();
 
     }
-
+   
     // Return some final values
     opt.trained = true;
     opt.trained_norm = normalization;

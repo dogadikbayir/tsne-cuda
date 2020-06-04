@@ -228,6 +228,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         pij_file.open("./pij_" + std::to_string(opt.num_points/1000) + ".txt");
         //dump the values of sparse array Pij
         for (const auto &e : stl_pij_vals) pij_file << e << " ";
+
+        pij_file << std::endl;
         //dump the indices of the values of Pij (COO format)
         for (const auto &e : stl_pij_coo) pij_file << e << " ";
         //dump reordered values of sparse array pij

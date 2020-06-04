@@ -536,7 +536,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             y_interpolated_values_device, potentialsQij_device);
 
         END_IL_TIMER(_time_nbodyfft);
-        rep_force_times.push_back(((float)duration.count()) / 1000000.0);
+        rep_force_times.push_back(((float) duration.count()) / 1000000.0);
         START_IL_TIMER();
 
         // Make the negative term, or F_rep in the equation 3 of the paper

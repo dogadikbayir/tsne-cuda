@@ -242,8 +242,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     
     std::vector<float> pij_re;
     std::vector<int> coo_re;
-    
-    std::string line;
+    if(opt.reorder==1) {
+       std::string line;
     std::ifstream myfile ("./pij_re_" + std::to_string(opt.num_points/1000) + ".txt");
     if (myfile.is_open())
     {
@@ -269,7 +269,9 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         coo_re.push_back(atoi(i.c_str()));
       }
     }
-    
+
+    }
+       
     //Copy host data to device
     thrust::device_vector<int> d_coo_re(coo_re);
     thrust::device_vector<float> d_sp_pij_re(pij_re);

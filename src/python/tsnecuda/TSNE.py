@@ -30,7 +30,7 @@ TsneConfig = namedtuple(
      'post_exaggeration_momentum', 'theta', 'epssq', 'min_gradient_norm', 'initialization_type',
      'preinit_data', 'dump_points', 'dump_file', 'dump_interval', 'use_interactive',
      'viz_server', 'viz_timeout', 'verbosity', 'print_interval', 'gpu_device', 'return_style',
-     'num_snapshots', 'reorder'])
+     'num_snapshots', 'reorder', 'reopt'])
 
 
 class TSNE(object):
@@ -65,7 +65,8 @@ class TSNE(object):
                  print_interval=10,
                  device=0,
                  magnitude_factor=5,
-                 reorder=1,):
+                 reorder=1,
+                 reopt=0,):
         """Initialization method for barnes hut T-SNE class.
         """
 
@@ -91,6 +92,7 @@ class TSNE(object):
         self.init = init
         self.verbosity = int(verbose)
         self.reorder = int(reorder)
+        self.reopt = int(reopt)
 
         # Initialize non-sklearn variables
         self.num_neighbors = int(num_neighbors)
@@ -160,7 +162,8 @@ class TSNE(object):
             gpu_device=c_int,
             return_style=c_int,
             num_snapshots=c_int,
-            reorder=c_int
+            reorder=c_int,
+            reopt=c_int
         )
 
         self._lib.pymodule_tsne.argtypes = list(tsne_argtypes)
@@ -229,7 +232,8 @@ class TSNE(object):
             gpu_device=c_int(self.gpu_device),
             return_style=c_int(self.return_style),
             num_snapshots=c_int(self.num_snapshots),
-            reorder=c_int(self.reorder)
+            reorder=c_int(self.reorder),
+            reopt=c_int(self.reopt)
         )
 
         return tsne_args

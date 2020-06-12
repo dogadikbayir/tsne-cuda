@@ -195,7 +195,8 @@ if(BUILD_PYTHON)
             ${CUDA_cusparse_LIBRARY}
             #/usr/local/cuda-8.0/lib64/libcudaevrt.a
             ${CUDA_cudadevrt_LIBRARY}
-            pthread
+	    ${CUDA_cusolver_LIBRARY}
+	    pthread
             zmq
             ${BLAS_LIB}
             glog
@@ -211,6 +212,7 @@ if(BUILD_PYTHON)
             ${CUDA_CUBLAS_LIBRARIES}
             ${CUDA_CUFFT_LIBRARIES}
             ${CUDA_cusparse_LIBRARY}
+	    ${CUDA_cusolver_LIBRARY}
             #/usr/local/cuda-8.0/lib64/libcudaevrt.a
             ${CUDA_cudadevrt_LIBRARY}
             pthread
@@ -315,6 +317,7 @@ if(WITH_ZMQ)
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_CUFFT_LIBRARIES}
         ${CUDA_cusparse_LIBRARY}
+	${CUDA_cusolver_LIBRARY}
         #/usr/local/cuda-8.0/lib64/libcudaevrt.a
         ${CUDA_cudadevrt_LIBRARY}
         pthread
@@ -332,6 +335,7 @@ else()
         ${CUDA_CUBLAS_LIBRARIES}
         ${CUDA_CUFFT_LIBRARIES}
         ${CUDA_cusparse_LIBRARY}
+	${CUDA_cusolver_LIBRARY}
         #/usr/local/cuda-8.0/lib64/libcudaevrt.a
         ${CUDA_cudadevrt_LIBRARY}
         pthread

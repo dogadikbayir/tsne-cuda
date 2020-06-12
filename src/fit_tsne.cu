@@ -91,12 +91,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     const int num_blocks = gpu_opt.sm_count;
 
     // Construct sparse matrix descriptor
-    cusparseSpMatDescr_t sparse_matrix_descriptor;
+    cusparseMatDescr_t sparse_matrix_descriptor;
 
     //cusparseDnMatDescr_t dense_pts;
     //cusparseDnMatDescr_t dense_pijqij;
 
-    //cusparseCreateMatDescr(&sparse_matrix_descriptor);
+    cusparseCreateMatDescr(&sparse_matrix_descriptor);
         
     
     cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
@@ -196,8 +196,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     thrust::device_vector<float> ones_device(opt.num_points * 2, 1); // This is for reduce summing, etc.
     thrust::device_vector<int> coo_indices_device(sparse_pij_device.size()*2);
 
-    tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
-                            pij_col_ind_device, num_points, num_nonzero);
+    //tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
+      //                      pij_col_ind_device, num_points, num_nonzero);
 
     END_IL_TIMER(_time_symmetry);
     START_IL_TIMER();
@@ -232,6 +232,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //  stl_reordered_pij.begin());
 
     //Dump Pij
+    /*
     std::vector<float> stl_pij_vals(sparse_pij_device.size());
     thrust::copy(sparse_pij_device.begin(), sparse_pij_device.end(), stl_pij_vals.begin());
     std::vector<int> stl_pij_coo(coo_indices_device.size());
@@ -298,6 +299,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       d_sp_pij_re = pij_re;
     
     }
+    */
    //sparse_pij_device = reord_pij_device;
     //coo_indices_device = reord_coo_device;
     //reord_coo_device.clear();
@@ -364,91 +366,120 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //Define the cuSparse matrices
     //
     //Create the cuSparse matrix (CSR)
-    cusparseCreateMatDescr(&sparse_matrix_descriptor);
-    cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatIndexBase(sparse_matrix_descriptor,
-        CUSPARSE_INDEX_BASE_ZERO);
+    //cusparseCreateMatDescr(&sparse_matrix_descriptor);
+    //cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
+    //cusparseSetMatIndexBase(sparse_matrix_descriptor,
+      //  CUSPARSE_INDEX_BASE_ZERO);
 
     //permute the pij sparse matrix
     if(opt.reorder==1) {
-      
+      int issym = 0;
+      int *h_Q = NULL;
+      int *h_pij_row_ptr_b = NULL;
+      int *h_mapBfromA = NULL;
+      float *h_pij_vals_b = NULL;
+      int *h_pij_col_ind_b = NULL;      
       cusolverSpHandle_t sol_handle = NULL;
       checkCudaErrors(cusolverSpCreate(&sol_handle));
+       std::cout << "Created sparse solver handle" << std::endl;
+      float *h_pij_vals = (float *)malloc((num_nonzero)*sizeof(float));
+      //h_pij_vals = thrust::raw_pointer_cast(sparse_pij_device.data());
+      cudaMemcpy(h_pij_vals, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
+      
+      int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
+      //h_pij_row_ptr = thrust::raw_pointer_cast(pij_row_ptr_device.data());
+      cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
 
-      float *h_pij_vals;
-      h_pij_vals = thrust::raw_pointer_cast(sparse_pij_device.data());
-
-      int *h_pij_row_ptr;
-      h_pij_row_ptr = thrust::raw_pointer_cast(pij_row_ptr_device.data());
-
-      int *h_pij_col_ind; 
-      h_pij_col_ind = thrust::raw_pointer_cast(pij_col_ind_device.data());
+      int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
+      //h_pij_col_ind = thrust::raw_pointer_cast(pij_col_ind_device.data());
+      cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
 
       h_Q = (int *)malloc(sizeof(int)*num_points);
       h_pij_row_ptr_b = (int *)malloc(sizeof(int)*(num_points+1));
       h_pij_col_ind_b = (int *)malloc(sizeof(int)*(num_nonzero));
       h_pij_vals_b = (float *)malloc(sizeof(float)*(num_nonzero));
-      h_mapBA = (int *)malloc(sizeof(int)*num_nonzero);
+      h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
       
       //check if memory has been allocated without any issues
       assert(NULL != h_Q);
-      assert(NULL != h_csrRowPtrB);
-      assert(NULL != h_csrColIndB);
-      assert(NULL != h_csrValB   );
+      assert(NULL != h_pij_row_ptr_b);
+      assert(NULL != h_pij_col_ind_b);
+      assert(NULL != h_pij_vals_b   );
       assert(NULL != h_mapBfromA);
       
+      std::cout << "Assertion done" << std::endl;
+      checkCudaErrors(cusolverSpXcsrissymHost(
+        sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_row_ptr+1, h_pij_col_ind, &issym));
+      
+      if(issym){
+	      std::cout << "Pij is symmetric" << std::endl;
+      }
       //Compute the permutation vector
+      std::cout << "Permuting matrix...";
       if(opt.reopt == 0) {                // RCM
-        checkCudaErrors(cuSolverSpXcsrsymrcmHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
+        checkCudaErrors(cusolverSpXcsrsymrcmHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
 
       }
       else{
-        checkCudaErrors(cuSolverSpXcsrsymamdHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
+        checkCudaErrors(cusolverSpXcsrsymamdHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
         
       }
+      
+      std::cout << "Permutation computed..." << std::endl;
+      
+      //float *h_pts_perm = (float *)malloc(sizeof(float)*(num_points*2));
+      //checkCudaErrors(cudaMemcpy(h_pts_perm, thrust::raw_pointer_cast(points_device.data()), sizeof(float)*(num_points*2), cudaMemcpyDeviceToHost));
+      //float *h_pts = (float *)malloc(sizeof(float)*(num_points*2));
+      //checkCudaErrors(cudaMemcpy(h_pts, thrust::raw_pointer_cast(points.device.data()), sizeof(float)*(num_points*2), cudaMemcpyDeviceToHost));
+
+      //for (int i=0; i < num_points*2; i += 2){
+      	
+      //}
       memcpy(h_pij_row_ptr_b, h_pij_row_ptr, sizeof(int)*(num_points+1));
       memcpy(h_pij_col_ind_b, h_pij_col_ind, sizeof(int)*num_nonzero);
       
       size_t size_perm = 0;
       void *buffer_cpu = NULL;
 
+      checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, &size_perm));
+      
       buffer_cpu = (void*)malloc(sizeof(char)*size_perm);
       assert(NULL!=buffer_cpu);
 
-      checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, &size_perm));
+
       for(int j = 0 ; j < num_nonzero ; j++)
       {
         h_mapBfromA[j] = j;
       }
       checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero ,sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, h_mapBfromA, buffer_cpu));
-
+      
       //Map the values
       for(int j = 0 ; j < num_nonzero ; j++)
       {
-            h_pij_vals_b = h_pij_vals[ h_mapBfromA[j] ];
+            h_pij_vals_b[j] = h_pij_vals[ h_mapBfromA[j] ];
       }
-
+	
       memcpy(h_pij_row_ptr, h_pij_row_ptr_b, sizeof(int)*(num_points+1));
       memcpy(h_pij_col_ind, h_pij_col_ind_b, sizeof(int)*num_nonzero);
       memcpy(h_pij_vals, h_pij_vals_b, sizeof(float)*num_nonzero);
-
+      std::cout << "Matrix B created" << std::endl;
       int *d_pij_row_ptr;
-      cudaMalloc((int**)&d_pij_row_ptr, sizeof(int)*(num_points+1));
-      cudaMemcpy(d_pij_row_ptr, h_pij_row_ptr, cudaMemcpyHostToDevice);
+      checkCudaErrors(cudaMalloc((void**)&d_pij_row_ptr, sizeof(int)*(num_points+1)));
+      checkCudaErrors(cudaMemcpy(d_pij_row_ptr, h_pij_row_ptr, sizeof(int)*(num_points+1) ,cudaMemcpyHostToDevice));
       //thrust::device_ptr<int> dp_row = thrust::device_pointer_cast(d_pij_row_ptr);
       std::vector<int> v_row_ptr(h_pij_row_ptr, h_pij_row_ptr + (num_points+1));
       thrust::device_vector<int> row_temp(v_row_ptr);
 
       int *d_pij_col_ind;
-      cudaMalloc((int**)&d_pij_col_ind, sizeof(int)*(num_nonzero));
-      cudaMemcpy(d_pij_col_ind, h_pij_col_ind, cudaMemcpyHostToDevice);
+      checkCudaErrors(cudaMalloc((void**)&d_pij_col_ind, sizeof(int)*(num_nonzero)));
+      checkCudaErrors(cudaMemcpy(d_pij_col_ind, h_pij_col_ind, sizeof(int)*(num_nonzero), cudaMemcpyHostToDevice));
       //thrust::device_ptr<int> dp_col = thrust::device_pointer_cast(d_pij_col_ind);
       std::vector<int> v_col_ind(h_pij_col_ind, h_pij_col_ind + (num_nonzero));
       thrust::device_vector<int> col_temp(v_col_ind);
       
       float *d_pij_vals;
-      cudaMalloc((float**)&d_pij_vals, sizeof(float)*(num_nonzero));
-      cudaMemcpy(d_pij_vals, h_pij_vals, cudaMemcpyHostToDevice);
+      checkCudaErrors(cudaMalloc((void**)&d_pij_vals, sizeof(float)*(num_nonzero)));
+      checkCudaErrors(cudaMemcpy(d_pij_vals, h_pij_vals,sizeof(float)*(num_nonzero), cudaMemcpyHostToDevice));
       //thrust::device_ptr<float> dp_vals(d_pij_vals);
       std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
       thrust::device_vector<float> vals_temp(v_vals);
@@ -458,6 +489,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       pij_col_ind_device = col_temp;
       sparse_pij_device = vals_temp;
       
+      std::cout << "Completed permuting" << std::endl;
       // Free memory
       if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
       if (h_pij_row_ptr) { free(h_pij_row_ptr); }
@@ -476,7 +508,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       if (d_pij_vals) { checkCudaErrors(cudaFree(d_pij_vals));} 
 
     } 
-    
+    tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
+                            pij_col_ind_device, num_points, num_nonzero);
+
+
 
 
     // FIT-TNSE Parameters
@@ -698,6 +733,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
+					      pijqij,
                                               sparse_pij_device,
                                               //d_sp_pij_re,
                                               pij_row_ptr_device,

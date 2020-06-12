@@ -20,6 +20,7 @@ void ComputeAttractiveForces(
                     cusparseHandle_t &handle,
                     cusparseMatDescr_t &descr,
                     thrust::device_vector<float> &attr_forces,
+		    thrust::device_vector<float> &pijqij,
                     thrust::device_vector<float> &sparse_pij,
                     thrust::device_vector<int> &pij_row_ptr,
                     thrust::device_vector<int> &pij_col_ind,

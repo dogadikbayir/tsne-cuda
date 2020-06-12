@@ -15,7 +15,7 @@
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
 #include <cusparse.h>
-#include <cusolverSP.h>
+#include <cusolverSp.h>
 #include <helper_cuda.h>
 #include <helper_cusolver.h>
 #include <cufft.h>

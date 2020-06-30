@@ -5,6 +5,8 @@
 #include "include/fit_tsne.h"
 #include <chrono>
 
+#define START_IL_REORDER() startReorder = std::chrono::high_resolution_clock::now();
+#define END_IL_REORDER(x) endReorder = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(endReorder-startReorder); x += duration; total_time += duration;
 #define START_IL_TIMER() start = std::chrono::high_resolution_clock::now();
 #define END_IL_TIMER(x) stop = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); x += duration; total_time += duration;
 #define PRINT_IL_TIMER(x) std::cout << #x << ": " << ((float) x.count()) / 1000000.0 << "s" << std::endl
@@ -53,12 +55,21 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 {
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
+    auto endReorder = std::chrono::high_resolution_clock::now();
+    auto startReorder = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-
+    
     auto total_time = duration;
     auto _time_initialization = duration;
     auto _time_knn = duration;
+    auto _time_knn2 = duration;
+    auto _time_normknn = duration;
     auto _time_symmetry = duration;
+    auto _time_perm = duration;
+    auto _time_reorder = duration;
+    auto _time_devicecopy = duration;
+    auto _time_hostcopy = duration;
+    auto _time_tot_perm = duration;
     auto _time_init_low_dim = duration;
     auto _time_init_fft = duration;
     auto _time_precompute_2d = duration;
@@ -140,17 +151,20 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
     // Compute approximate K Nearest Neighbors and squared distances
     tsnecuda::util::KNearestNeighbors(gpu_opt, knn_indices, knn_squared_distances, high_dim_points, high_dim, num_points, num_neighbors);
+    END_IL_TIMER(_time_knn);
+    START_IL_TIMER();
     thrust::device_vector<long> knn_indices_long_device(knn_indices, knn_indices + num_points * num_neighbors);
     thrust::device_vector<int> knn_indices_device(num_points * num_neighbors);
     tsnecuda::util::PostprocessNeighborIndices(gpu_opt, knn_indices_device, knn_indices_long_device,
                                                         num_points, num_neighbors);
-
+    END_IL_TIMER(_time_knn2);
+    START_IL_TIMER();
     // Max-norm the distances to avoid exponentiating by large numbers
     thrust::device_vector<float> knn_squared_distances_device(knn_squared_distances,
                                             knn_squared_distances + (num_points * num_neighbors));
     tsnecuda::util::MaxNormalizeDeviceVector(knn_squared_distances_device);
 
-    END_IL_TIMER(_time_knn);
+    END_IL_TIMER(_time_normknn);
     START_IL_TIMER();
 
     if (opt.verbosity > 0) {
@@ -372,6 +386,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //  CUSPARSE_INDEX_BASE_ZERO);
 
     //permute the pij sparse matrix
+    START_IL_REORDER();
     if(opt.reorder==1) {
       int issym = 0;
       int *h_Q = NULL;
@@ -416,6 +431,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       }
       //Compute the permutation vector
       std::cout << "Permuting matrix...";
+      START_IL_TIMER();
       if(opt.reopt == 0) {                // RCM
         checkCudaErrors(cusolverSpXcsrsymrcmHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
 
@@ -424,7 +440,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         checkCudaErrors(cusolverSpXcsrsymamdHost(sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q));
         
       }
-      
+      END_IL_TIMER(_time_perm);
       std::cout << "Permutation computed..." << std::endl;
       
       //float *h_pts_perm = (float *)malloc(sizeof(float)*(num_points*2));
@@ -440,7 +456,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       
       size_t size_perm = 0;
       void *buffer_cpu = NULL;
-
+      START_IL_TIMER();
       checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, &size_perm));
       
       buffer_cpu = (void*)malloc(sizeof(char)*size_perm);
@@ -458,11 +474,14 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       {
             h_pij_vals_b[j] = h_pij_vals[ h_mapBfromA[j] ];
       }
-	
+	    
       memcpy(h_pij_row_ptr, h_pij_row_ptr_b, sizeof(int)*(num_points+1));
       memcpy(h_pij_col_ind, h_pij_col_ind_b, sizeof(int)*num_nonzero);
       memcpy(h_pij_vals, h_pij_vals_b, sizeof(float)*num_nonzero);
+      END_IL_TIMER(_time_reorder);
+      
       std::cout << "Matrix B created" << std::endl;
+      START_IL_TIMER();
       int *d_pij_row_ptr;
       checkCudaErrors(cudaMalloc((void**)&d_pij_row_ptr, sizeof(int)*(num_points+1)));
       checkCudaErrors(cudaMemcpy(d_pij_row_ptr, h_pij_row_ptr, sizeof(int)*(num_points+1) ,cudaMemcpyHostToDevice));
@@ -483,12 +502,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //thrust::device_ptr<float> dp_vals(d_pij_vals);
       std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
       thrust::device_vector<float> vals_temp(v_vals);
-      
+      END_IL_TIMER(_time_hostcopy);
       //Update Pij vector to be passed to ComputeAttractiveForces
+      START_IL_TIMER();
       pij_row_ptr_device = row_temp;
       pij_col_ind_device = col_temp;
       sparse_pij_device = vals_temp;
-      
+      END_IL_TIMER(_time_devicecopy);
       std::cout << "Completed permuting" << std::endl;
       // Free memory
       if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
@@ -507,7 +527,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       if (d_pij_col_ind) { checkCudaErrors(cudaFree(d_pij_col_ind));} 
       if (d_pij_vals) { checkCudaErrors(cudaFree(d_pij_vals));} 
 
-    } 
+    }
+   END_IL_REORDER(_time_tot_perm); 
     tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
                             pij_col_ind_device, num_points, num_nonzero);
 
@@ -661,6 +682,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //create vector to record rep force computation time
     std::vector<float> rep_force_times;
     // Support for infinite iteration
+    double time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
+
     for (size_t step = 0; step != opt.iterations; step++) {
 
         START_IL_TIMER();
@@ -728,8 +751,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
         // Calculate Attractive Forces
              
-      
-          tsnecuda::ComputeAttractiveForces(gpu_opt,
+        tsnecuda::ComputeAttractiveForces(gpu_opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
@@ -743,6 +765,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               points_device,
                                               ones_device,
                                               num_points,
+                                              time_firstSPDM,
+                                              time_secondSPDM,
+                                              time_mul,
+                                              time_pijkern,
                                               num_nonzero);
 
         END_IL_TIMER(_time_attr);
@@ -761,7 +787,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                   attr_exaggeration,
                                   num_points,
                                   num_blocks);
-
+        END_IL_TIMER(_time_apply_forces);
         // // Compute the gradient norm
         tsnecuda::util::SquareDeviceVector(attractive_forces_device, old_forces_device);
         thrust::transform(attractive_forces_device.begin(), attractive_forces_device.begin()+num_points,
@@ -772,6 +798,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             attractive_forces_device.begin(), attractive_forces_device.begin() + num_points,
             0.0f, thrust::plus<float>()) / num_points;
         thrust::fill(attractive_forces_device.begin(), attractive_forces_device.end(), 0.0f);
+        //END_IL_TIMER(_time_apply_forces);
 
         if (grad_norm < opt.min_gradient_norm) {
             if (opt.verbosity >= 1) std::cout << "Reached minimum gradient norm: " << grad_norm << std::endl;
@@ -782,8 +809,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             std::cout << "[Step " << step << "] Avg. Gradient Norm: " << grad_norm << std::endl;
         }
 
-        END_IL_TIMER(_time_apply_forces);
-
+        
 
         #ifndef NO_ZMQ
             if (send_zmq) {
@@ -824,7 +850,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.verbosity > 0) {
         PRINT_IL_TIMER(_time_initialization);
         PRINT_IL_TIMER(_time_knn);
+        PRINT_IL_TIMER(_time_knn2);
+        PRINT_IL_TIMER(_time_normknn);
         PRINT_IL_TIMER(_time_symmetry);
+        PRINT_IL_TIMER(_time_perm);
+        PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_tot_perm);
         PRINT_IL_TIMER(_time_init_low_dim);
         PRINT_IL_TIMER(_time_init_fft);
         PRINT_IL_TIMER(_time_compute_charges);
@@ -835,6 +866,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_apply_forces);
         PRINT_IL_TIMER(_time_other);
         PRINT_IL_TIMER(total_time);
+
+        std::cout << "time_firstSPDM" << ": " << (time_firstSPDM / 1000000.0) << "s" << std::endl;
+        std::cout << "time_secondSPDM" << ": " << (time_secondSPDM / 1000000.0) << "s" << std::endl;
+        std::cout << "time_mul" << ": " << (time_mul / 1000000.0) << "s" << std::endl;
+        std::cout << "time_pijkern" << ": " << (time_pijkern / 1000000.0) << "s" << std::endl;
+
+
     }
 
 

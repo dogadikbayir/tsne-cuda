@@ -196,7 +196,7 @@ namespace tsnecuda {
             cudaSetDevice(device);
 
             // Set some base variables
-            this->warp_size = device_properties.warpSize;
+            this->warp_size=32;
             if (this->warp_size != 32){
                  std::cerr << "E: Device warp size not supported." << std::endl;
                  exit(1);

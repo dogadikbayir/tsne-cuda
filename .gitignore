@@ -1,6 +1,7 @@
 tsne_utils
 compile_commands.json
 
+core*
 *.o
 *.so
 *.pyc

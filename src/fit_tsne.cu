@@ -97,7 +97,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     CublasSafeCall(cublasCreate(&dense_handle));
     cusparseHandle_t sparse_handle;
     CusparseSafeCall(cusparseCreate(&sparse_handle));
-
+    std::cout << "Created cublas handle" << std::endl;
     // Set CUDA device properties
     const int num_blocks = gpu_opt.sm_count;
 
@@ -749,13 +749,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         START_IL_TIMER();
 
 
-        // Calculate Attractive Forces
-             
+        // Calculate Attractive Forces            
         tsnecuda::ComputeAttractiveForces(gpu_opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
-					      pijqij,
+					                                    pijqij,
                                               sparse_pij_device,
                                               //d_sp_pij_re,
                                               pij_row_ptr_device,

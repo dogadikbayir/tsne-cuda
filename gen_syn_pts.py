@@ -27,7 +27,7 @@ if option == 0:
   np.savetxt(str(num_points) + ".data", x, delimiter=" ", fmt='%f')
 
 elif option == 1:
-  X_emb = TSNE(verbose=True).fit_transform(x)
+  X_emb = TSNE(reorder=reorder,verbose=True).fit_transform(x)
 
 else:
   print("Inside faiss branch")

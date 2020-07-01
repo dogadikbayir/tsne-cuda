@@ -28,10 +28,10 @@ void ComputeAttractiveForces(
                     thrust::device_vector<float> &points,
                     thrust::device_vector<float> &ones,
                     const int num_points,
-                    double &time_firstSPDM,
-                    double &time_secondSPDM,
-                    double &time_mul,
-                    double &time_pijkern,
+                    float &time_firstSPDM,
+                    float &time_secondSPDM,
+                    float &time_mul,
+                    float &time_pijkern,
                     const int num_nonzero);
 }
 

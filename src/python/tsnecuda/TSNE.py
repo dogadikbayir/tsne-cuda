@@ -59,7 +59,7 @@ class TSNE(object):
                  use_interactive=False,
                  viz_timeout=10000,
                  viz_server="tcp://localhost:5556",
-                 dump_points=True,
+                 dump_points=False,
                  dump_file="dump.txt",
                  dump_interval=100,
                  print_interval=10,

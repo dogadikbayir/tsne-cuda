@@ -682,7 +682,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //create vector to record rep force computation time
     std::vector<float> rep_force_times;
     // Support for infinite iteration
-    double time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
+    float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
 
     for (size_t step = 0; step != opt.iterations; step++) {
 
@@ -866,10 +866,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_other);
         PRINT_IL_TIMER(total_time);
 
-        std::cout << "time_firstSPDM" << ": " << (time_firstSPDM / 1000000.0) << "s" << std::endl;
-        std::cout << "time_secondSPDM" << ": " << (time_secondSPDM / 1000000.0) << "s" << std::endl;
-        std::cout << "time_mul" << ": " << (time_mul / 1000000.0) << "s" << std::endl;
-        std::cout << "time_pijkern" << ": " << (time_pijkern / 1000000.0) << "s" << std::endl;
+        std::cout << "time_firstSPDM" << ": " << (time_firstSPDM) << "s" << std::endl;
+        std::cout << "time_secondSPDM" << ": " << (time_secondSPDM) << "s" << std::endl;
+        std::cout << "time_mul" << ": " << (time_mul) << "s" << std::endl;
+        std::cout << "time_pijkern" << ": " << (time_pijkern ) << "s" << std::endl;
 
 
     }

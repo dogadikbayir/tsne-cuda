@@ -60,10 +60,10 @@ void tsnecuda::ComputeAttractiveForces(
                     thrust::device_vector<float> &points,
                     thrust::device_vector<float> &ones,
                     const int num_points,
-                    double &time_firstSPDM,
-                    double &time_secondSPDM,
-                    double &time_mul,
-                    double &time_pijkern,
+                    float &time_firstSPDM,
+                    float &time_secondSPDM,
+                    float &time_mul,
+                    float &time_pijkern,
                     const int num_nonzero)
 {
     // Computes pij*qij for each i,j
@@ -135,8 +135,8 @@ void tsnecuda::ComputeAttractiveForces(
 
     END_IL_TIMER(time_secondSPDM_);
 
-    time_firstSPDM = ((double) time_firstSPDM_.count()) / 1000000.0;
-    time_secondSPDM = ((double) time_secondSPDM_.count()) / 1000000.0;  
-    time_mul = ((double) time_mul_.count()) / 1000000.0; 
-    time_pijkern = ((double) time_pijkern_.count()) / 1000000.0; 
+    time_firstSPDM = ((float) time_firstSPDM_.count()) / 1000000.0;
+    time_secondSPDM = ((float) time_secondSPDM_.count()) / 1000000.0;  
+    time_mul = ((float) time_mul_.count()) / 1000000.0; 
+    time_pijkern = ((float) time_pijkern_.count()) / 1000000.0; 
 }

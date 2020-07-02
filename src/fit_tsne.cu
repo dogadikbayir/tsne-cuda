@@ -388,6 +388,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //permute the pij sparse matrix
     START_IL_REORDER();
     if(opt.reorder==1) {
+      START_IL_TIMER();
       int issym = 0;
       int *h_Q = NULL;
       int *h_pij_row_ptr_b = NULL;
@@ -423,12 +424,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       assert(NULL != h_mapBfromA);
       
       std::cout << "Assertion done" << std::endl;
-      checkCudaErrors(cusolverSpXcsrissymHost(
-        sol_handle, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_row_ptr+1, h_pij_col_ind, &issym));
-      
-      if(issym){
-	      std::cout << "Pij is symmetric" << std::endl;
-      }
+      END_IL_TIMER(_time_hostcopy);      
       //Compute the permutation vector
       std::cout << "Permuting matrix...";
       START_IL_TIMER();
@@ -478,54 +474,67 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       memcpy(h_pij_row_ptr, h_pij_row_ptr_b, sizeof(int)*(num_points+1));
       memcpy(h_pij_col_ind, h_pij_col_ind_b, sizeof(int)*num_nonzero);
       memcpy(h_pij_vals, h_pij_vals_b, sizeof(float)*num_nonzero);
+
+      delete [] h_pij_row_ptr_b;
+      delete [] h_pij_col_ind_b;
+      delete [] h_pij_vals_b;
+      delete [] h_mapBfromA;
+      delete [] h_Q;
+      if (buffer_cpu) {free(buffer_cpu);}
+      if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
+
+
       END_IL_TIMER(_time_reorder);
       
       std::cout << "Matrix B created" << std::endl;
       START_IL_TIMER();
-      int *d_pij_row_ptr;
-      checkCudaErrors(cudaMalloc((void**)&d_pij_row_ptr, sizeof(int)*(num_points+1)));
-      checkCudaErrors(cudaMemcpy(d_pij_row_ptr, h_pij_row_ptr, sizeof(int)*(num_points+1) ,cudaMemcpyHostToDevice));
+      //int *d_pij_row_ptr;
+      //checkCudaErrors(cudaMalloc((void**)&d_pij_row_ptr, sizeof(int)*(num_points+1)));
+      //checkCudaErrors(cudaMemcpy(d_pij_row_ptr, h_pij_row_ptr, sizeof(int)*(num_points+1) ,cudaMemcpyHostToDevice));
       //thrust::device_ptr<int> dp_row = thrust::device_pointer_cast(d_pij_row_ptr);
       std::vector<int> v_row_ptr(h_pij_row_ptr, h_pij_row_ptr + (num_points+1));
-      thrust::device_vector<int> row_temp(v_row_ptr);
+      if (h_pij_row_ptr) { free(h_pij_row_ptr); }
+      thrust::host_vector<int> row_temp(v_row_ptr);
 
-      int *d_pij_col_ind;
-      checkCudaErrors(cudaMalloc((void**)&d_pij_col_ind, sizeof(int)*(num_nonzero)));
-      checkCudaErrors(cudaMemcpy(d_pij_col_ind, h_pij_col_ind, sizeof(int)*(num_nonzero), cudaMemcpyHostToDevice));
+      //int *d_pij_col_ind;
+      //checkCudaErrors(cudaMalloc((void**)&d_pij_col_ind, sizeof(int)*(num_nonzero)));
+      //checkCudaErrors(cudaMemcpy(d_pij_col_ind, h_pij_col_ind, sizeof(int)*(num_nonzero), cudaMemcpyHostToDevice));
       //thrust::device_ptr<int> dp_col = thrust::device_pointer_cast(d_pij_col_ind);
       std::vector<int> v_col_ind(h_pij_col_ind, h_pij_col_ind + (num_nonzero));
-      thrust::device_vector<int> col_temp(v_col_ind);
+      if (h_pij_col_ind) { free(h_pij_col_ind); }
+      thrust::host_vector<int> col_temp(v_col_ind);
       
-      float *d_pij_vals;
-      checkCudaErrors(cudaMalloc((void**)&d_pij_vals, sizeof(float)*(num_nonzero)));
-      checkCudaErrors(cudaMemcpy(d_pij_vals, h_pij_vals,sizeof(float)*(num_nonzero), cudaMemcpyHostToDevice));
+      //float *d_pij_vals;
+      //checkCudaErrors(cudaMalloc((void**)&d_pij_vals, sizeof(float)*(num_nonzero)));
+      //checkCudaErrors(cudaMemcpy(d_pij_vals, h_pij_vals,sizeof(float)*(num_nonzero), cudaMemcpyHostToDevice));
       //thrust::device_ptr<float> dp_vals(d_pij_vals);
       std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
-      thrust::device_vector<float> vals_temp(v_vals);
-      END_IL_TIMER(_time_hostcopy);
+      if (h_pij_vals) {free(h_pij_vals);}
+      thrust::host_vector<float> vals_temp(v_vals);
       //Update Pij vector to be passed to ComputeAttractiveForces
-      START_IL_TIMER();
+      
+      
       pij_row_ptr_device = row_temp;
       pij_col_ind_device = col_temp;
       sparse_pij_device = vals_temp;
+      //thru
+      //st::copy(col_temp.begin(), col_temp.end() , pij_col_ind_device.begin());
+      //thrust::copy(vals_temp.begin(), vals_temp.end(), sparse_pij_device.begin());
       END_IL_TIMER(_time_devicecopy);
       std::cout << "Completed permuting" << std::endl;
       // Free memory
-      if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
-      if (h_pij_row_ptr) { free(h_pij_row_ptr); }
-      if (h_pij_col_ind) { free(h_pij_col_ind); }
-      if (h_pij_vals) {free(h_pij_vals); }
+                       //if (h_pij_vals) {free(h_pij_vals); }
       
-      if (h_pij_row_ptr_b) { free(h_pij_row_ptr_b); }
-      if (h_pij_col_ind_b) { free(h_pij_col_ind_b); }
-      if (h_pij_vals_b) {free(h_pij_vals_b); }
+      //if (h_pij_row_ptr_b) { free(h_pij_row_ptr_b); }
+      //if (h_pij_col_ind_b) { free(h_pij_col_ind_b); }
+      //if (h_pij_vals_b) {free(h_pij_vals_b); }
 
-      if (h_Q) { free(h_Q); }
-      if (buffer_cpu) {free(buffer_cpu);}
+      //if (h_Q) { free(h_Q); }
+      //if (buffer_cpu) {free(buffer_cpu);}
 
-      if (d_pij_row_ptr) { checkCudaErrors(cudaFree(d_pij_row_ptr));}
-      if (d_pij_col_ind) { checkCudaErrors(cudaFree(d_pij_col_ind));} 
-      if (d_pij_vals) { checkCudaErrors(cudaFree(d_pij_vals));} 
+      //if (d_pij_row_ptr) { checkCudaErrors(cudaFree(d_pij_row_ptr));}
+      //if (d_pij_col_ind) { checkCudaErrors(cudaFree(d_pij_col_ind));} 
+      //if (d_pij_vals) { checkCudaErrors(cudaFree(d_pij_vals));} 
 
     }
    END_IL_REORDER(_time_tot_perm); 
@@ -854,6 +863,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_symmetry);
         PRINT_IL_TIMER(_time_perm);
         PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_hostcopy);
+        PRINT_IL_TIMER(_time_devicecopy);
         PRINT_IL_TIMER(_time_tot_perm);
         PRINT_IL_TIMER(_time_init_low_dim);
         PRINT_IL_TIMER(_time_init_fft);

@@ -67,6 +67,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     auto _time_symmetry = duration;
     auto _time_perm = duration;
     auto _time_reorder = duration;
+    auto _time_reord_buff = duration;
+    auto _time_mapping = duration;
     auto _time_devicecopy = duration;
     auto _time_hostcopy = duration;
     auto _time_tot_perm = duration;
@@ -454,7 +456,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       void *buffer_cpu = NULL;
       START_IL_TIMER();
       checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, &size_perm));
-      
+      END_IL_TIMER(_time_reord_buff);
       buffer_cpu = (void*)malloc(sizeof(char)*size_perm);
       assert(NULL!=buffer_cpu);
 
@@ -463,14 +465,16 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       {
         h_mapBfromA[j] = j;
       }
+      START_IL_TIMER();
       checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero ,sparse_matrix_descriptor, h_pij_row_ptr_b, h_pij_col_ind_b, h_Q, h_Q, h_mapBfromA, buffer_cpu));
-      
+      END_IL_TIME(_time_reorder);
       //Map the values
+      START_IL_TIMER();
       for(int j = 0 ; j < num_nonzero ; j++)
       {
             h_pij_vals_b[j] = h_pij_vals[ h_mapBfromA[j] ];
       }
-	    
+	    END_IL_TIMER(_time_mapping);
       memcpy(h_pij_row_ptr, h_pij_row_ptr_b, sizeof(int)*(num_points+1));
       memcpy(h_pij_col_ind, h_pij_col_ind_b, sizeof(int)*num_nonzero);
       memcpy(h_pij_vals, h_pij_vals_b, sizeof(float)*num_nonzero);
@@ -484,7 +488,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
 
 
-      END_IL_TIMER(_time_reorder);
+      
       
       std::cout << "Matrix B created" << std::endl;
       START_IL_TIMER();
@@ -863,6 +867,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_symmetry);
         PRINT_IL_TIMER(_time_perm);
         PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_reord_buff);
+        PRINT_IL_TIMER(_time_mapping);
         PRINT_IL_TIMER(_time_hostcopy);
         PRINT_IL_TIMER(_time_devicecopy);
         PRINT_IL_TIMER(_time_tot_perm);

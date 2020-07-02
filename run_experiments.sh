@@ -6,5 +6,5 @@ do
 
   python gen_syn_pts.py $num_points 50 15 150 1 1
 
-  num_points=($num_points*2)
+  num_points=$(($num_points*2))
 done

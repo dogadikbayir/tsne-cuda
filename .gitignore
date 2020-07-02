@@ -3,6 +3,7 @@ compile_commands.json
 
 core*
 *.sb
+*.out
 reptimes*
 *.o
 *.so

@@ -460,7 +460,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       cudaMemcpy(d_num_points,&num_points, sizeof(int), cudaMemcpyHostToDevice);
       cudaMemcpy(d_nnz, &num_nonzero, sizeof(int), cudaMemcpyHostToDevice);
 
-
+      std::cout << "Mem alloc completed -- inside reorder2" << std::endl;
       cusparseStatus_t status_color;
 
       //cusparseHandle_t handle_color;
@@ -471,6 +471,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         exit(1);
       }
       status_color = cusparseScsrcolor(sparse_handle, *d_num_points, *d_nnz, sparse_matrix_descriptor, thrust::raw_pointer_cast(sparse_pij_device.data()), thrust::raw_pointer_cast(pij_row_ptr_device.data()), thrust::raw_pointer_cast(pij_col_ind_device.data()), d_fraction, d_ncolors, d_coloring, d_reordering, info );
+
+      std::cout << "csrcolor completed " << std::endl;
        switch (status_color) {
           case CUSPARSE_STATUS_SUCCESS:
             printf("success\n");

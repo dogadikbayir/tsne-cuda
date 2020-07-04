@@ -380,6 +380,12 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //delete [] h_pij_row_ptr_b;
       //delete [] h_pij_col_ind_b;
       //delete [] h_pij_vals_b;
+      std::ofstream reord_file;
+      reord_file.open("reordering_rcm.txt");
+      for (int i=0; i < num_points; i++) {
+        reord_file << h_Q[i] << " ";
+      }
+
       delete [] h_mapBfromA;
       delete [] h_Q;
       if (buffer_cpu) {free(buffer_cpu);}
@@ -442,36 +448,43 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //coloring
     
     else if(opt.reorder == 2) {
-      int ncolors=0, coloring[9] = {0}, reordering[9] = {0};
-      float fraction=1.0;
-      int *d_ncolors, *d_coloring, *d_reordering;
-      float *d_fraction;
-      int *d_num_points, *d_nnz;
+      int ncolors=0; //coloring[num_points] = {0}, reordering[num_points] = {0};
       
-      cudaMalloc((void **)&d_num_points, sizeof(int));
-      cudaMalloc((void **)&d_nnz, sizeof(int));
+      int *coloring = (int *)malloc(num_points * sizeof(int));
+      int *reordering = (int *)malloc(num_points * sizeof(int));
 
-      cudaMalloc((void **)&d_ncolors, sizeof(int));
+      float fraction=1.0;
+      int *d_coloring, *d_reordering;
+      //float *d_fraction;
+      //int *d_num_points, *d_nnz;
+      
+      //cudaMalloc((void **)&d_num_points, sizeof(int));
+      //cudaMalloc((void **)&d_nnz, sizeof(int));
+
+      //cudaMalloc((void **)&d_ncolors, sizeof(int));
       cudaMalloc((void **)&d_coloring, num_points * sizeof(int)); 
       cudaMalloc((void **)&d_reordering, num_points * sizeof(int)); 
-      cudaMalloc((void **)&d_fraction, sizeof(float));
+      //cudaMalloc((void **)&d_fraction, sizeof(float));
 
-      cudaMemcpy(d_fraction, &fraction, sizeof(float), cudaMemcpyHostToDevice); 
-      cudaMemcpy(d_num_points,&num_points, sizeof(int), cudaMemcpyHostToDevice);
-      cudaMemcpy(d_nnz, &num_nonzero, sizeof(int), cudaMemcpyHostToDevice);
+      //cudaMemcpy(d_fraction, &fraction, sizeof(float), cudaMemcpyHostToDevice); 
+      //cudaMemcpy(d_num_points,&num_points, sizeof(int), cudaMemcpyHostToDevice);
+      //cudaMemcpy(d_nnz, &num_nonzero, sizeof(int), cudaMemcpyHostToDevice);
 
       std::cout << "Mem alloc completed -- inside reorder2" << std::endl;
       cusparseStatus_t status_color;
 
-      //cusparseHandle_t handle_color;
+      cusparseHandle_t handle_color;
+      CusparseSafeCall(cusparseCreate(&handle_color));
+
       cusparseColorInfo_t info;
       status_color = cusparseCreateColorInfo(&info);
       if (status_color != CUSPARSE_STATUS_SUCCESS) {
         printf("error");
         exit(1);
       }
-      status_color = cusparseScsrcolor(sparse_handle, *d_num_points, *d_nnz, sparse_matrix_descriptor, thrust::raw_pointer_cast(sparse_pij_device.data()), thrust::raw_pointer_cast(pij_row_ptr_device.data()), thrust::raw_pointer_cast(pij_col_ind_device.data()), d_fraction, d_ncolors, d_coloring, d_reordering, info );
-
+      START_IL_TIMER();
+      status_color = cusparseScsrcolor(handle_color, num_points, num_nonzero, sparse_matrix_descriptor, thrust::raw_pointer_cast(sparse_pij_device.data()), thrust::raw_pointer_cast(pij_row_ptr_device.data()), thrust::raw_pointer_cast(pij_col_ind_device.data()), &fraction, &ncolors, d_coloring, d_reordering, info );
+      END_IL_TIMER(_time_perm);
       std::cout << "csrcolor completed " << std::endl;
        switch (status_color) {
           case CUSPARSE_STATUS_SUCCESS:
@@ -498,11 +511,17 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             printf("unknown error\n");
             break;
        }
-       cudaMemcpy(&ncolors, d_ncolors, sizeof(int), cudaMemcpyDeviceToHost);
-       printf("ncolors=%p, &ncolors=%p\n", d_ncolors, &d_ncolors);
+       //cudaMemcpy(&ncolors, d_ncolors, sizeof(int), cudaMemcpyDeviceToHost);
+       //printf("ncolors=%p, &ncolors=%p\n", d_ncolors, &d_ncolors);
        cudaMemcpy(coloring, d_coloring, num_points * sizeof(int), cudaMemcpyDeviceToHost);
-       cudaMemcpy(&reordering, d_reordering, num_points * sizeof(int), cudaMemcpyDeviceToHost);
-       
+       cudaMemcpy(reordering, d_reordering, num_points * sizeof(int), cudaMemcpyDeviceToHost);
+      std::cout << "memcpy 1 finished color" << std::endl;
+      std::ofstream reord_file;
+      reord_file.open("reordering_color.txt");
+      for (int i=0; i < num_points; i++) {
+        reord_file << reordering[i] << " ";
+      }
+
       int *h_mapBfromA = NULL;
       //float *h_pij_vals_b = NULL;
       //int *h_pij_col_ind_b = NULL;      
@@ -548,6 +567,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        for(int j = 0; j< num_nonzero; j++) {
         h_mapBfromA[j] = j;
        }
+
        START_IL_TIMER();
        checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, reordering, reordering, h_mapBfromA, buffer_cpu) );
        END_IL_TIMER(_time_reorder);

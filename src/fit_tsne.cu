@@ -203,7 +203,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
     // Declare memory
 
-    thrust::device_vector<float> pijqij(sparse_pij_device.size());
+    //thrust::device_vector<float> pijqij(sparse_pij_device.size());
     thrust::device_vector<float> repulsive_forces_device(opt.num_points * 2, 0);
     thrust::device_vector<float> attractive_forces_device(opt.num_points * 2, 0);
     thrust::device_vector<float> gains_device(opt.num_points * 2, 1);
@@ -821,7 +821,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
-					                                    pijqij,
+					                                    //pijqij,
                                               sparse_pij_device,
                                               //d_sp_pij_re,
                                               pij_row_ptr_device,

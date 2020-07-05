@@ -15,6 +15,7 @@ k = int(sys.argv[4])
 
 option = int(sys.argv[5])
 reorder = int(sys.argv[6])
+num_clusters = int(sys.argv[7])
 
 x, y = make_classification(n_samples=num_points, n_features=num_dims,
     n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep,

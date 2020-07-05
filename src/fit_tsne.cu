@@ -380,11 +380,11 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       //delete [] h_pij_row_ptr_b;
       //delete [] h_pij_col_ind_b;
       //delete [] h_pij_vals_b;
-      std::ofstream reord_file;
-      reord_file.open("reordering_rcm.txt");
-      for (int i=0; i < num_points; i++) {
-        reord_file << h_Q[i] << " ";
-      }
+      //std::ofstream reord_file;
+      //reord_file.open("reordering_rcm.txt");
+      //for (int i=0; i < num_points; i++) {
+        //reord_file << h_Q[i] << " ";
+      //}
 
       delete [] h_mapBfromA;
       delete [] h_Q;

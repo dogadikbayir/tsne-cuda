@@ -184,6 +184,18 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     knn_indices_long_device.clear();
     knn_indices_long_device.shrink_to_fit();
     delete[] knn_squared_distances;
+
+    if(opt.reorder == 7){
+      //Dump knn info to file
+      std::ofstream knn_file;
+      knn_file.open("knn_" + std::to_string(opt.num_points));
+      //host_ys = new float[num_points * 2];
+      //dump_file << num_points << " " << 2 << std::endl;
+      for(auto n : knn_indices){
+        knn_file << n << " ";
+      }
+
+    }
     delete[] knn_indices;
 
     // Symmetrize the pij matrix

@@ -219,7 +219,7 @@ void tsnecuda::util::permuteCooKernel(volatile int * __restrict__ coo_indices,
 {
     register int TID, p, i, j;
     TID = threadIdx.x + blockIdx.x * blockDim.x;
-    if(TID >= num_nonzero) return;
+    if(TID >= num_points) return;
     p = perm[TID];
     i = coo_indices_org[p*2];
     j = coo_indices_org[p*2+1];

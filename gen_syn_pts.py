@@ -29,6 +29,10 @@ if option == 0:
   np.savetxt(str(num_points) + ".data", x, delimiter=" ", fmt='%f')
 
 elif option == 1:
+  x = np.loadtxt('/home/dogadikbayir/mnist.csv', delimiter=",")
+  X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
+
+elif option == 2:
   X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
 
 else:

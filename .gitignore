@@ -1,6 +1,11 @@
 tsne_utils
 compile_commands.json
 
+knn_*
+ind_*
+rows_*
+vals_*
+
 core*
 *.sb
 *.out

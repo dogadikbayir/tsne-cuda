@@ -297,8 +297,40 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     //cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
     //cusparseSetMatIndexBase(sparse_matrix_descriptor,
       //  CUSPARSE_INDEX_BASE_ZERO);
+    
+    
+      float *h_pij_vals2 = (float *)malloc((num_nonzero)*sizeof(float));
+      //h_pij_vals = thrust::raw_pointer_cast(sparse_pij_device.data());
+      cudaMemcpy(h_pij_vals2, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
+     
+      int *h_pij_row_ptr2 = (int *)malloc((num_points+1)*sizeof(int));
+      //h_pij_row_ptr = thrust::raw_pointer_cast(pij_row_ptr_device.data());
+      cudaMemcpy(h_pij_row_ptr2, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
+
+      int *h_pij_col_ind2 = (int *)malloc((num_nonzero)*sizeof(int));
+      //h_pij_col_ind = thrust::raw_pointer_cast(pij_col_ind_device.data());
+      cudaMemcpy(h_pij_col_ind2, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
+
+    std::ofstream vals_file;
+    std::ofstream row_file;
+    std::ofstream ind_file;
+    vals_file.open("vals_" + std::to_string(opt.num_points));
+    row_file.open("rows_" + std::to_string(opt.num_points));
+    ind_file.open("ind_" + std::to_string(opt.num_points));
+
+      for(int i=0; i<num_nonzero; i++){
+        vals_file << h_pij_vals2[i] << " ";
+      }
+      for(int i=0; i<num_points+1; i++){
+        row_file << h_pij_row_ptr2[i] << " ";
+      }
+      for(int i=0; i<num_nonzero; i++){
+        ind_file << h_pij_col_ind2[i] << " ";
+      }
+
 
     //permute the pij sparse matrix
+    std::cout << "Num num_nonzero: " << num_nonzero << std::endl;
     START_IL_REORDER();
     if(opt.reorder==1) {
       START_IL_TIMER();
@@ -698,7 +730,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
        std::cout << "Completed permuting" << std::endl;
     }
-    else if(opt.reorder==7){
+    else if(opt.reorder==8){
      int *h_mapBfromA = NULL;
       //float *h_pij_vals_b = NULL;
       //int *h_pij_col_ind_b = NULL;      
@@ -733,7 +765,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
      int *h_Q = (int *)malloc(sizeof(int)*num_points);
 
      std::string line;
-     std::ifstream myfile ("perm_edg.out");
+     std::ifstream myfile ("edg_perm.out");
      if(myfile.is_open())
      {
       int i = 0;
@@ -770,6 +802,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
        if(h_pij_vals) { free(h_pij_vals);}
        thrust::host_vector<float> vals_temp(v_vals);
+       
+       pij_row_ptr_device = row_temp;
+       pij_col_ind_device = col_temp;
+       sparse_pij_device = vals_temp;
 
     }
    END_IL_REORDER(_time_tot_perm); 

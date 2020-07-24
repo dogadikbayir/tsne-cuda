@@ -99,11 +99,25 @@ void SymmetrizeMatrix(cusparseHandle_t &handle,
         const int num_neighbors);
 
 __global__
+void permuteCooKernel(volatile int * __restrict__ coo_indices,
+                                      const int * __restrict__ coo_indices_org,
+                                      const int * __restrict__ perm,
+                                      const int num_points,
+                                      const int num_nonzero);
+
+__global__
 void Csr2CooKernel(volatile int * __restrict__ coo_indices,
                              const int * __restrict__ pij_row_ptr,
                              const int * __restrict__ pij_col_ind,
                              const int num_points,
                              const int num_nonzero);
+
+void permuteCoo(tsnecuda::GpuOptions &gpu_opt,
+                                thrust::device_vector<int> &coo_indices,
+                                thrust::device_vector<int> &coo_indices_org,
+                                thrust::device_vector<int> &perm,
+                                const int num_points,
+                                const int num_nonzero);
 
 void Csr2Coo(                tsnecuda::GpuOptions &gpu_opt,
                              thrust::device_vector<int> &coo_indices,

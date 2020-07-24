@@ -6,6 +6,8 @@ ind_*
 rows_*
 vals_*
 
+*.bucu
+
 core*
 *.sb
 *.out

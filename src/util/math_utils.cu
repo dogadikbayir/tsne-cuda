@@ -210,7 +210,23 @@ void tsnecuda::util::SymmetrizeMatrix(cusparseHandle_t &handle,
     cudaFree(csc_column_ptr_at);
     cudaFree(csc_row_ptr_at);
 }
+__global__
+void tsnecuda::util::permuteCooKernel(volatile int * __restrict__ coo_indices,
+                                      const int * __restrict__ coo_indices_org,
+                                      const int * __restrict__ perm,
+                                      const int num_points,
+                                      const int num_nonzero)
+{
+    register int TID, p, i, j;
+    TID = threadIdx.x + blockIdx.x * blockDim.x;
+    if(TID >= num_nonzero) return;
+    p = perm[TID];
+    i = coo_indices_org[p*2];
+    j = coo_indices_org[p*2+1];
 
+    coo_indices[2*TID] = i;
+    coo_indices[2*TID+1] = j; 
+}
 __global__
 void tsnecuda::util::Csr2CooKernel(volatile int * __restrict__ coo_indices,
                              const int * __restrict__ pij_row_ptr,
@@ -240,6 +256,23 @@ void tsnecuda::util::permuteMat(tsnecuda::GPUOptions &gpu_opt,
                                 thrust::device_vector<float> &pij_sparse ) {
     
 }*/
+//Simple parallel permutation copy for coordinates
+void tsnecuda::util::permuteCoo(tsnecuda::GpuOptions &gpu_opt,
+                                thrust::device_vector<int> &coo_indices,
+                                thrust::device_vector<int> &coo_indices_org,
+                                thrust::device_vector<int> &perm,
+                                const int num_points,
+                                const int num_nonzero)
+{
+    const int num_threads = 1024;
+    const int num_blocks = iDivUp(num_nonzero, num_threads);
+
+    tsnecuda::util::permuteCooKernel<<<num_blocks,num_threads>>>(thrust::raw_pointer_cast(coo_indices.data()),
+                                                                 thrust::raw_pointer_cast(coo_indices_org.data()),
+                                                                 thrust::raw_pointer_cast(perm.data()),
+                                                                 num_points, num_nonzero);
+    GpuErrorCheck(cudaDeviceSynchronize());
+}
 void tsnecuda::util::Csr2Coo(tsnecuda::GpuOptions &gpu_opt,
                              thrust::device_vector<int> &coo_indices,
                              thrust::device_vector<int> &pij_row_ptr,

@@ -5,7 +5,7 @@ knn_*
 ind_*
 rows_*
 vals_*
-
+coo_host_*
 *.bucu
 
 core*

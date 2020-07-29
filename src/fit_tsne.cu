@@ -347,7 +347,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::cout << "Num num_nonzero: " << num_nonzero << std::endl;
     tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, num_points, num_nonzero);
     
-    tsnecuda::save_coo("coo_before_", coo_indices_device, num_points);
+    tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
     START_IL_REORDER();
     if(opt.reorder==1) {
       START_IL_TIMER();
@@ -830,7 +830,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                             pij_col_ind_device, num_points, num_nonzero);
 
    
-    tsnecuda::save_coo("coo_after_", coo_indices_device, num_points);
+    tsnecuda::save_coo("coo_after_", coo_indices_device, num_nonzero);
     // FIT-TNSE Parameters
     int n_interpolation_points = 3;
     // float intervals_per_integer = 1;

@@ -9,7 +9,7 @@ coo_host_*
 *.bucu
 coo_before*
 coo_after*
-
+pij_all*
 core*
 *.sb
 *.out

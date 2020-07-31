@@ -825,10 +825,27 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        sparse_pij_device = vals_temp;
 
     }
-   END_IL_REORDER(_time_tot_perm); 
-    tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
-                            pij_col_ind_device, num_points, num_nonzero);
+    else if(opt.reorder==9) {
+      int *h_Q = (int *)malloc(sizeof(int)*num_points);
 
+      std::string line;
+      std::ifstream myfile ("edg_perm.out");
+      if(myfile.is_open())
+      {
+        int i = 0;
+        while(std::getline(myfile,line)){
+          h_Q[i] = std::atoi(line.c_str());
+          i += 1;  
+        }
+
+      tsnecuda::util::permuteCoo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, h_Q, num_points, num_nonzero);
+    }
+    }
+   END_IL_REORDER(_time_tot_perm);
+    if(opt.reorder != 9){ 
+      tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
+                            pij_col_ind_device, num_points, num_nonzero);
+    }
     std::cout << "Num nonzero 2: " << num_nonzero << std::endl;
     
     tsnecuda::save_coo("coo_after_", coo_indices_device, num_nonzero);

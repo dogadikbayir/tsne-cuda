@@ -212,21 +212,34 @@ void tsnecuda::util::SymmetrizeMatrix(cusparseHandle_t &handle,
 }
 __global__
 void tsnecuda::util::permuteCooKernel(volatile int * __restrict__ coo_indices,
-                                      const int * __restrict__ coo_indices_org,
+                                      const int * __restrict__ pij_row_ptr,
+                                      const int * __restrict__ pij_col_ind,
+                                      //const float * __restrict__ new_vals,
                                       const int * __restrict__ perm,
                                       const int num_points,
                                       const int num_nonzero)
 {
-    int TID, i_org, j_org, i_new, j_new;
+    register int TID, i, i2, new_j, offset, lim;
     TID = threadIdx.x + blockIdx.x * blockDim.x;
     if(TID >= num_points) return;
-    i_org = coo_indices[2*TID];
-    j_org = coo_indices[2*TID+1];
-    i_new = perm[i_org];
-    j_new = perm[j_org];
+    //i_new = TID;
+    offset = pij_row_ptr[perm[TID]];
+    lim = pij_row_ptr[perm[TID+1]];
+    //Form new row with thread TID
+    i2 = offset + 1;
+    for(i=offset+1; i < lim+1; i++) {
+      new_j = perm[pij_col_ind[i]];
 
-    coo_indices[2*TID] = i_new;
-    coo_indices[2*TID+1] = j_new; 
+      //new_vals[i] = pij_vals[i];
+      coo_indices[i2-1] = TID;
+      coo_indices[i2] = new_j;
+      i2 = i2 + 2;
+    }
+    //i_new = perm[i_org];
+    //j_new = perm[j_org];
+
+    //coo_indices[2*TID] = i_new;
+    //coo_indices[2*TID+1] = j_new; 
 }
 __global__
 void tsnecuda::util::Csr2CooKernel(volatile int * __restrict__ coo_indices,
@@ -260,8 +273,10 @@ void tsnecuda::util::permuteMat(tsnecuda::GPUOptions &gpu_opt,
 //Simple parallel permutation copy for coordinates
 void tsnecuda::util::permuteCoo(tsnecuda::GpuOptions &gpu_opt,
                                 thrust::device_vector<int> &coo_indices,
-                                thrust::device_vector<int> &coo_indices_org,
-                                thrust::device_vector<int> &perm,
+                                thrust::device_vector<int> &pij_row_ptr,
+                                thrust::device_vector<int> &pij_col_ind,
+                                //thrust::device_vector<float> &new_vals,
+                                const int * perm,
                                 const int num_points,
                                 const int num_nonzero)
 {
@@ -269,8 +284,10 @@ void tsnecuda::util::permuteCoo(tsnecuda::GpuOptions &gpu_opt,
     const int num_blocks = iDivUp(num_nonzero, num_threads);
 
     tsnecuda::util::permuteCooKernel<<<num_blocks,num_threads>>>(thrust::raw_pointer_cast(coo_indices.data()),
-                                                                 thrust::raw_pointer_cast(coo_indices_org.data()),
-                                                                 thrust::raw_pointer_cast(perm.data()),
+                                                                 thrust::raw_pointer_cast(pij_row_ptr.data()),
+                                                                 thrust::raw_pointer_cast(pij_col_ind.data()),
+                                                                 //thrust::raw_pointer_cast(new_vals.data()),
+                                                                 perm,
                                                                  num_points, num_nonzero);
     GpuErrorCheck(cudaDeviceSynchronize());
 }

@@ -103,9 +103,12 @@ void permuteCooKernel(volatile int * __restrict__ coo_indices,
                                       const int * __restrict__ row_ptr,
                                       const int * __restrict__ col_ind,
                                       const int * __restrict__ perm,
+                                      const int * __restrict__ perm_new,
                                       const int num_points,
                                       const int num_nonzero);
 
+__global__
+void invertPermKernel(volatile int * __restrict__ perm_new, const int * __restrict__ perm, const int num_points);
 __global__
 void Csr2CooKernel(volatile int * __restrict__ coo_indices,
                              const int * __restrict__ pij_row_ptr,
@@ -117,7 +120,8 @@ void permuteCoo(tsnecuda::GpuOptions &gpu_opt,
                                 thrust::device_vector<int> &coo_indices,
                                 thrust::device_vector<int> &pij_row_ptr_device,
                                 thrust::device_vector<int> &pij_col_ind_device,
-                                const int * perm,
+                                thrust::device_vector<int> &perm,
+                                thrust::device_vector<int> &perm_new,
                                 const int num_points,
                                 const int num_nonzero);
 

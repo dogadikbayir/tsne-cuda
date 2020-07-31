@@ -35,7 +35,7 @@ namespace tsnecuda {
 std::vector<std::string> split(std::string str, std::string del );
 
 template <typename T>
-void save_coo(std::string filename, thrust::device_vector<T> device_vec); 
+void save_coo(std::string filename, thrust::device_vector<T> device_vec, int num_nonzero); 
 
 void RunTsne(tsnecuda::Options &opt, tsnecuda::GpuOptions &gpu_opt);
 }

@@ -837,8 +837,9 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
           h_Q[i] = std::atoi(line.c_str());
           i += 1;  
         }
-
-      tsnecuda::util::permuteCoo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, h_Q, num_points, num_nonzero);
+        thrust::device_vector<int> d_Q(h_Q, h_Q+num_points);
+        thrust::device_vector<int> d_Q_new(h_Q, h_Q+num_points);
+      tsnecuda::util::permuteCoo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, d_Q, d_Q_new, num_points, num_nonzero);
     }
     }
    END_IL_REORDER(_time_tot_perm);

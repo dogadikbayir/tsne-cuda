@@ -7,8 +7,8 @@ rows_*
 vals_*
 coo_host_*
 *.bucu
-coo_before*
-coo_after*
+*_before*
+*_after*
 pij_all*
 core*
 *.sb

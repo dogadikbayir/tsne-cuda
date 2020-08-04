@@ -1,6 +1,14 @@
 tsne_utils
 compile_commands.json
 
+*.bucu
+pij*
+*_after*
+*_before*
+ind*
+rows*
+vals*
+
 core*
 *.sb
 *.out

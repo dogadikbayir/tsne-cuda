@@ -5,6 +5,10 @@
 #include "include/fit_tsne.h"
 #include <chrono>
 #include <string>
+#include "../rabbit_order.hpp"
+#include "edge_list.hpp"
+#include <boost/range/adaptor/transformed.hpp>
+#include <boost/range/algorithm/count.hpp>
 
 #define START_IL_REORDER() startReorder = std::chrono::high_resolution_clock::now();
 #define END_IL_REORDER(x) endReorder = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(endReorder-startReorder); x += duration; total_time += duration;
@@ -20,6 +24,75 @@
                status, __LINE__);                                              \
         return EXIT_FAILURE;                                                   \
     }                                                                          \
+}
+using rabbit_order::vint;
+
+template<typename RandomAccessRange>
+adjacency_list make_adj_list(const vint n, const RandomAccessRange& es) {
+  using std::get;
+
+  // Symmetrize the edge list and remove self-loops simultaneously
+  std::vector<edge_list::edge> ss(boost::size(es) * 2);
+  #pragma omp parallel for
+  for (size_t i = 0; i < boost::size(es); ++i) {
+    auto& e = es[i];
+    if (get<0>(e) != get<1>(e)) {
+      ss[i * 2    ] = std::make_tuple(get<0>(e), get<1>(e), get<2>(e));
+      ss[i * 2 + 1] = std::make_tuple(get<1>(e), get<0>(e), get<2>(e));
+    } else {
+      // Insert zero-weight edges instead of loops; they are ignored in making
+      // an adjacency list
+      ss[i * 2    ] = std::make_tuple(0, 0, 0.0f);
+      ss[i * 2 + 1] = std::make_tuple(0, 0, 0.0f);
+    }
+  }
+
+  // Sort the edges
+  __gnu_parallel::sort(ss.begin(), ss.end());
+
+  // Convert to an adjacency list
+  adjacency_list adj(n);
+  #pragma omp parallel
+  {
+    // Advance iterators to a boundary of a source vertex
+    const auto adv = [](auto it, const auto first, const auto last) {
+      while (first != it && it != last && get<0>(*(it - 1)) == get<0>(*it))
+        ++it;
+      return it;
+    };
+
+    // Compute an iterator range assigned to this thread
+    const int    p      = omp_get_max_threads();
+    const size_t t      = static_cast<size_t>(omp_get_thread_num());
+    const size_t ifirst = ss.size() / p * (t)   + std::min(t,   ss.size() % p);
+    const size_t ilast  = ss.size() / p * (t+1) + std::min(t+1, ss.size() % p);
+    auto         it     = adv(ss.begin() + ifirst, ss.begin(), ss.end());
+    const auto   last   = adv(ss.begin() + ilast,  ss.begin(), ss.end());
+
+    // Reduce edges and store them in std::vector
+    while (it != last) {
+      const vint s = get<0>(*it);
+
+      // Obtain an upper bound of degree and reserve memory
+      const auto maxdeg = 
+          std::find_if(it, last, [s](auto& x) {return get<0>(x) != s;}) - it;
+      adj[s].reserve(maxdeg);
+
+      while (it != last && get<0>(*it) == s) {
+        const vint t = get<1>(*it);
+        float      w = 0.0;
+        while (it != last && get<0>(*it) == s && get<1>(*it) == t)
+          w += get<2>(*it++);
+        if (w > 0.0)
+          adj[s].push_back({t, w});
+      }
+
+      // The actual degree can be smaller than the upper bound
+      adj[s].shrink_to_fit();
+    }
+  }
+
+  return adj;
 }
 
 //Custom comparator for permuting a thrust vector
@@ -349,6 +422,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     
     tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
     START_IL_REORDER();
+    //RCM Reorder
     if(opt.reorder==1) {
       START_IL_TIMER();
       int issym = 0;
@@ -373,7 +447,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
 
       h_Q = (int *)malloc(sizeof(int)*num_points);
-          h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
+      h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
       
       //check if memory has been allocated without any issues
       assert(NULL != h_Q);
@@ -448,6 +522,58 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       sparse_pij_device = vals_temp;
       END_IL_TIMER(_time_devicecopy);
       std::cout << "Completed permuting" << std::endl;
+   //Rabbit Order
+   else if(opt.reorder==2){
+    std::cerr << "Generating a permutation...\n";
+    const double tstart = rabbit_order::now_sec();
+    //-----------------------------------------------------
+    const auto g = rabbit_order::aggregate(std::move(adj));
+    const auto p = rabbit_order::compute_perm(g);
+    //-----------------------------------------------------
+    int *perm = p.get();
+
+    assert(perm != NULL);
+    assert(sizeof(perm) == ((num_points)*sizeof(int)));
+
+    int *h_mapBfromA = NULL;
+      
+      cusolverSpHandle_t sol_handle = NULL;
+      checkCudaErrors(cusolverSpCreate(&sol_handle));
+       std::cout << "Created sparse solver handle" << std::endl;
+      float *h_pij_vals = (float *)malloc((num_nonzero)*sizeof(float));
+      
+      cudaMemcpy(h_pij_vals, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
+      
+      int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
+      
+      cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
+
+      int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
+      
+      cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
+
+     
+      h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
+      
+      assert(NULL != h_mapBfromA);
+
+      size_t size_perm = 0;
+       void *buffer_cpu = NULL;
+       
+       START_IL_TIMER();
+       checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle,num_points ,num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr,h_pij_col_ind, perm, perm, &size_perm));
+       END_IL_TIMER(_time_reord_buff);
+
+       buffer_cpu = (void*)malloc(sizeof(char)*size_perm);
+       assert(NULL!=buffer_cpu);
+       for(int j = 0; j< num_nonzero; j++) {
+        h_mapBfromA[j] = j;
+       }
+
+       START_IL_TIMER();
+       checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, perm, perm, h_mapBfromA, buffer_cpu) );
+       END_IL_TIMER(_time_reorder);
+   }
    else if(opt.reorder==8){
      int *h_mapBfromA = NULL;
       //float *h_pij_vals_b = NULL;

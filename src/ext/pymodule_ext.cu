@@ -34,7 +34,8 @@ void pymodule_tsne(float *result,
                    int return_style,
                    int num_snapshots,
                    int reorder,
-                   int reopt)
+                   int reopt,
+                   int matType)
 {
     // Extract the dimensions of the points array
     ssize_t num_points = dims[0];
@@ -65,7 +66,7 @@ void pymodule_tsne(float *result,
     opt.print_interval = print_interval;
     opt.reorder = reorder;
     opt.reopt = reopt;
-
+    opt.matType = matType;
     // Initialization
     switch (initialization_type) {
         case 0:

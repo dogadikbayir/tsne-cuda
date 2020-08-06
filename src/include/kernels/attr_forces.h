@@ -14,6 +14,22 @@
 #include "util/cuda_utils.h"
 
 namespace tsnecuda {
+void ComputeAttractiveForcesBSR(
+                    tsnecuda::GpuOptions &gpu_opt,
+                    cusparseHandle_t &handle,
+                    cusparseMatDescr_t &bsr_descr,
+                    thrust::device_vector<float> &attr_forces,
+                    thrust::device_vector<float> &pijqij,
+                    thrust::device_vector<float> &sparse_pij_device,
+                    float *bsrVal,
+                    int *bsrRowPtr,
+                    int *bsrColInd,
+                    thrust::device_vector<int> &coo_indices,
+                    thrust::device_vector<float> &points,
+                    thrust::device_vector<float> &ones,
+                    const int num_points,
+                    const int num_nonzero,
+                    const int nnzb);
 
 void ComputeAttractiveForces(
                     tsnecuda::GpuOptions &gpu_opt,

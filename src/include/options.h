@@ -66,6 +66,7 @@ namespace tsnecuda {
             int verbosity = 20;
             int reorder = 1;
             int reopt = 0;
+            int matType = 0;
             int print_interval= 10;
 
             // Return methods
@@ -93,7 +94,7 @@ namespace tsnecuda {
                     bool dump_points, int dump_interval,
                     RETURN_STYLE return_style, float* return_data, int num_snapshots,
                     bool use_interactive, std::string viz_server,
-                    int verbosity, int print_interval, int reorder, int reopt
+                    int verbosity, int print_interval, int reorder, int reopt, int matType
                     ) :
                     points(points),
                     num_points(num_points),
@@ -123,7 +124,8 @@ namespace tsnecuda {
                     verbosity(verbosity),
                     print_interval(print_interval),
                     reorder(reorder),
-                    reopt(reopt)
+                    reopt(reopt),
+                    matType(matType)
                     {this->random_seed = time(NULL);}
 
             bool enable_dump(std::string filename, int interval = 1) {

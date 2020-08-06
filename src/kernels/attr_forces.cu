@@ -46,6 +46,66 @@ void ComputePijxQijKernel(
     //atomicAdd(attr_forces + i, pijqij * dx);
     //atomicAdd(attr_forces + num_points + i, pijqij * dy);
 }
+void tsnecuda::ComputeAttractiveForcesBSR(
+                    tsnecuda::GpuOptions &gpu_opt,
+                    cusparseHandle_t &handle,
+                    cusparseMatDescr_t &bsr_descr,
+                    thrust::device_vector<float> &attr_forces,
+                    thrust::device_vector<float> &pijqij,
+                    thrust::device_vector<float> &sparse_pij_device,
+                    float *bsrVal,
+                    int *bsrRowPtr,
+                    int *bsrColInd,
+                    thrust::device_vector<int> &coo_indices,
+                    thrust::device_vector<float> &points,
+                    thrust::device_vector<float> &ones,
+                    const int num_points,
+                    const int num_nonzero,
+                    const int nnzb)
+{
+   const int BLOCKSIZE = 1024;
+    const int NBLOCKS = iDivUp(num_nonzero, BLOCKSIZE);
+    
+    //START_IL_TIMER();
+
+    ComputePijxQijKernel<<<NBLOCKS, BLOCKSIZE>>>(
+                    thrust::raw_pointer_cast(pijqij.data()),
+                    thrust::raw_pointer_cast(sparse_pij_device.data()),
+                    thrust::raw_pointer_cast(points.data()),
+                    thrust::raw_pointer_cast(coo_indices.data()),
+                    num_points,
+                    num_nonzero);
+    GpuErrorCheck(cudaDeviceSynchronize());
+    
+    float alpha = 1.0f;
+    float beta = 0.0f;
+    
+    int mb = (num_points + BLOCKSIZE-1)/BLOCKSIZE;
+
+    const int m = mb * BLOCKSIZE;
+    const int ldb = m;
+    const int ldc = m;
+
+    cusparseSbsrmm(handle, CUSPARSE_DIRECTION_ROW,
+        CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, mb,
+        2, mb, nnzb, &alpha, bsr_descr, bsrVal, bsrRowPtr, bsrColInd,
+        BLOCKSIZE, thrust::raw_pointer_cast(ones.data()), ldb, &beta,
+        thrust::raw_pointer_cast(attr_forces.data()), ldc );
+    GpuErrorCheck(cudaDeviceSynchronize());
+
+    //Second Hadamard Prod.
+    thrust::transform(attr_forces.begin(), attr_forces.end(), points.begin(),
+        attr_forces.begin(), thrust::multiplies<float>());
+    GpuErrorCheck(cudaDeviceSynchronize());
+
+    cusparseSbsrmm(handle, CUSPARSE_DIRECTION_ROW,
+        CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, mb,
+        2, mb, nnzb, &alpha, bsr_descr, bsrVal, bsrRowPtr, bsrColInd,
+        BLOCKSIZE, thrust::raw_pointer_cast(points.data()), ldb, &beta,
+        thrust::raw_pointer_cast(attr_forces.data()), ldc );
+    GpuErrorCheck(cudaDeviceSynchronize());
+
+}
 
 void tsnecuda::ComputeAttractiveForces(
                     tsnecuda::GpuOptions &gpu_opt,

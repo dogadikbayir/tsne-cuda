@@ -67,7 +67,7 @@ class TSNE(object):
                  magnitude_factor=5,
                  reorder=1,
                  reopt=0,
-                 matType=0,):
+                 matType=0):
         """Initialization method for barnes hut T-SNE class.
         """
 

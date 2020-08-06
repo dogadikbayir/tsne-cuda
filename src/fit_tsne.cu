@@ -544,13 +544,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     // Support for infinite iteration
     float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
 
-            int base;
-            int nnzb;
-            int *bsrRowPtr;
-            int *bsrColInd;
-            float *bsrVal;
-          cusparseMatDescr_t bsr_descr;
-           cusparseCreateMatDescr(&bsr_descr);
+    int base;
+    int nnzb;
+    int *bsrRowPtr;
+    int *bsrColInd;
+    float *bsrVal;
+    cusparseMatDescr_t bsr_descr;
+    cusparseCreateMatDescr(&bsr_descr);
  
     //Convert to BSR before entering the iterations
     if(opt.matType!=0){
@@ -656,6 +656,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
         // Calculate Attractive Forces
+        // CSR
         if(opt.matType==0){            
           tsnecuda::ComputeAttractiveForces(gpu_opt,
                                                 sparse_handle,

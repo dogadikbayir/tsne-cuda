@@ -82,9 +82,9 @@ void tsnecuda::ComputeAttractiveForcesBSR(
     
     int mb = (num_points + BLOCKSIZE-1)/BLOCKSIZE;
 
-    const int m = mb * BLOCKSIZE;
-    const int ldb = m;
-    const int ldc = m;
+    const int m = num_points;//mb * BLOCKSIZE;
+    const int ldb = num_points;
+    const int ldc = num_points;
 
     cusparseSbsrmm(handle, CUSPARSE_DIRECTION_ROW,
         CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, mb,

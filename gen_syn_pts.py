@@ -16,7 +16,7 @@ k = int(sys.argv[4])
 option = int(sys.argv[5])
 reorder = int(sys.argv[6])
 num_clusters = int(sys.argv[7])
-
+t = int(sys.argv[8])
 x, y = make_classification(n_samples=num_points, n_features=num_dims,
     n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep,
     n_clusters_per_class=1, scale=10.0,
@@ -28,7 +28,7 @@ if option == 0:
   np.savetxt(str(num_points) + ".data", x, delimiter=" ", fmt='%f')
 
 elif option == 1:
-  X_emb = TSNE(reorder=reorder,verbose=True).fit_transform(x)
+  X_emb = TSNE(reorder=reorder,matType=t,verbose=True).fit_transform(x)
 
 else:
   print("Inside faiss branch")

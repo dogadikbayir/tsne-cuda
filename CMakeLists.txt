@@ -45,8 +45,11 @@ ADD_DEFINITIONS(-DVERSION_STRING=${VERSION_STRING})
 
 
 # CXX Configuration
-#-------------------------------------------------------------------------------
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+#-----------------------------------------------------------------------------
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+SET(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Wall -Wextra -Wcast-align -Wcast-qual -Wconversion -Wfloat-equal -Wformat=2 -Winit-self -Wmissing-declarations -Wmissing-include-dirs -Wpointer-arith -Wredundant-decls -Wuninitialized -Wwrite-strings -Wno-sign-conversion -Wno-unused-function -Wno-missing-declarations -fopenmp -std=c++14 -mcx16 -O3 -DNDEBUG")
 #-------------------------------------------------------------------------------
 
 # CUDA Configuration
@@ -65,7 +68,7 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
                     -gencode=arch=compute_60,code=sm_60
                     -gencode=arch=compute_61,code=sm_61
                     -gencode=arch=compute_70,code=sm_70
-                    -std=c++11
+                    -std=c++14
                     -Xcompiler '-O3'
                     -Xcompiler '-fPIC'
                     -Xcompiler '-fopenmp'
@@ -220,6 +223,9 @@ if(BUILD_PYTHON)
             glog
             -Wl,--allow-multiple-definition
             -Wl,-shared
+            -L/mnt/home/dikbayir/bin_gperf/lib 
+            -ltcmalloc_minimal 
+            -lnuma
         )
     endif()
 
@@ -342,6 +348,8 @@ else()
         ${BLAS_LIB}
         glog
         -Wl,--allow-multiple-definition
+        /mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.a
+        /opt/software/numactl/2.0.12-GCCcore-8.3.0/lib/libnuma.a
     )
 endif()
 #-------------------------------------------------------------------------------

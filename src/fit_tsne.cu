@@ -5,10 +5,6 @@
 #include "include/fit_tsne.h"
 #include <chrono>
 #include <string>
-#include "../rabbit_order.hpp"
-#include "edge_list.hpp"
-#include <boost/range/adaptor/transformed.hpp>
-#include <boost/range/algorithm/count.hpp>
 
 #define START_IL_REORDER() startReorder = std::chrono::high_resolution_clock::now();
 #define END_IL_REORDER(x) endReorder = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(endReorder-startReorder); x += duration; total_time += duration;
@@ -27,8 +23,36 @@
 }
 using rabbit_order::vint;
 
+//typedef std::vector<std::vector<std::pair<vint, float>>> adjacency_list;
+//typedef std::tuple<vint, vint, float> edge;
+
+std::vector<edge_list::edge> tsnecuda::gen_edgelist(int *row_ptr, int *col_ind, int num_points, int num_nnz) {
+  //Init empty vector
+  std::vector<edge_list::edge> edges;
+
+  //Iterate over col indices
+  int row_ind = 0;
+  int counter = 0;
+  int num_nnz_row = row_ptr[1];
+  int temp_counter = 0;
+  edge_list::edge e;
+  while(counter < num_nnz) {
+    if (temp_counter < num_nnz_row) {
+      e = edge_list::edge {row_ind, col_ind[counter], 1.0};
+      edges.push_back(e);
+      counter++;
+      temp_counter++;
+    }
+    else { temp_counter = 0; row_ind++;num_nnz_row = row_ptr[row_ind + 1];}
+  }
+  //assert(edges != NULL);
+  assert(edges.size() == num_nnz);
+
+  return edges;
+}
+
 template<typename RandomAccessRange>
-adjacency_list make_adj_list(const vint n, const RandomAccessRange& es) {
+tsnecuda::adjacency_list tsnecuda::make_adj_list(const vint n, const RandomAccessRange& es) {
   using std::get;
 
   // Symmetrize the edge list and remove self-loops simultaneously
@@ -422,6 +446,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     
     tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
     START_IL_REORDER();
+//======
+//============================================================================================================== 
     //RCM Reorder
     if(opt.reorder==1) {
       START_IL_TIMER();
@@ -522,15 +548,35 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       sparse_pij_device = vals_temp;
       END_IL_TIMER(_time_devicecopy);
       std::cout << "Completed permuting" << std::endl;
+    }
    //Rabbit Order
    else if(opt.reorder==2){
+    
+    int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
+      
+      cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
+
+      int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
+      
+      cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
+    std::vector<edge_list::edge> edges = gen_edgelist(h_pij_row_ptr, h_pij_col_ind, num_points, num_nonzero);
+    auto adj = make_adj_list(num_points, edges);
     std::cerr << "Generating a permutation...\n";
     const double tstart = rabbit_order::now_sec();
     //-----------------------------------------------------
     const auto g = rabbit_order::aggregate(std::move(adj));
     const auto p = rabbit_order::compute_perm(g);
     //-----------------------------------------------------
-    int *perm = p.get();
+    vint *perm1 = p.get();
+    int *perm = (int *)malloc(sizeof(int)*num_points);
+    //Convert vint array to int - ToDo: Just use ints in Rabbit Order
+    for(int i = 0; i < num_points;i++)
+    {
+      perm[int(perm1[i])] = i;
+    }
+    
+    free(perm1);
+    
 
     assert(perm != NULL);
     assert(sizeof(perm) == ((num_points)*sizeof(int)));
@@ -544,20 +590,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       
       cudaMemcpy(h_pij_vals, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
       
-      int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
       
-      cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
-
-      int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
-      
-      cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
-
      
       h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
       
       assert(NULL != h_mapBfromA);
 
-      size_t size_perm = 0;
+       size_t size_perm = 0;
        void *buffer_cpu = NULL;
        
        START_IL_TIMER();
@@ -573,6 +612,45 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        START_IL_TIMER();
        checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, perm, perm, h_mapBfromA, buffer_cpu) );
        END_IL_TIMER(_time_reorder);
+      
+       //Map the values
+      START_IL_TIMER();
+      for(int j = 0 ; j < num_nonzero ; j++)
+      {
+            h_pij_vals[j] = h_pij_vals[ h_mapBfromA[j] ];
+      }
+	    END_IL_TIMER(_time_mapping);
+           delete [] h_mapBfromA;
+      delete [] perm;
+      if (buffer_cpu) {free(buffer_cpu);}
+      if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
+
+
+      
+      
+      std::cout << "Matrix B created" << std::endl;
+      START_IL_TIMER();
+           std::vector<int> v_row_ptr(h_pij_row_ptr, h_pij_row_ptr + (num_points+1));
+      if (h_pij_row_ptr) { free(h_pij_row_ptr); }
+      thrust::host_vector<int> row_temp(v_row_ptr);
+
+           std::vector<int> v_col_ind(h_pij_col_ind, h_pij_col_ind + (num_nonzero));
+      if (h_pij_col_ind) { free(h_pij_col_ind); }
+      thrust::host_vector<int> col_temp(v_col_ind);
+      
+           std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
+      if (h_pij_vals) {free(h_pij_vals);}
+      thrust::host_vector<float> vals_temp(v_vals);
+      //Update Pij vector to be passed to ComputeAttractiveForces
+      
+      
+      pij_row_ptr_device = row_temp;
+      pij_col_ind_device = col_temp;
+      sparse_pij_device = vals_temp;
+      END_IL_TIMER(_time_devicecopy);
+      std::cout << "Completed permuting" << std::endl;
+
+
    }
    else if(opt.reorder==8){
      int *h_mapBfromA = NULL;

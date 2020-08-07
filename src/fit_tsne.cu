@@ -575,7 +575,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       perm[int(perm1[i])] = i;
     }
     
-    free(perm1);
+    //free(perm1);
     
 
     assert(perm != NULL);

@@ -212,7 +212,7 @@ if(BUILD_PYTHON)
             faiss
             ${CUDA_LIBRARIES}
             ${OpenMP_CXX_FLAGS}
-            ${CUDA_CUBLAS_LIBRARIES}
+            /usr/lib/x86_64-linux-gnu/libcublas.so
             ${CUDA_CUFFT_LIBRARIES}
             ${CUDA_cusparse_LIBRARY}
 	    ${CUDA_cusolver_LIBRARY}
@@ -223,7 +223,7 @@ if(BUILD_PYTHON)
             glog
             -Wl,--allow-multiple-definition
             -Wl,-shared
-            -L/mnt/home/dikbayir/bin_gperf/lib 
+            -L/home/dikbayir/gperftools 
             -ltcmalloc_minimal 
             -lnuma
         )
@@ -338,7 +338,7 @@ else()
         faiss
         ${CUDA_LIBRARIES}
         ${OpenMP_CXX_FLAGS}
-        ${CUDA_CUBLAS_LIBRARIES}
+        /usr/lib/x86_64-linux-gnu/libcublas.so
         ${CUDA_CUFFT_LIBRARIES}
         ${CUDA_cusparse_LIBRARY}
 	${CUDA_cusolver_LIBRARY}
@@ -348,8 +348,8 @@ else()
         ${BLAS_LIB}
         glog
         -Wl,--allow-multiple-definition
-        /mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.a
-        /opt/software/numactl/2.0.12-GCCcore-8.3.0/lib/libnuma.a
+	/usr/local/lib/libtcmalloc_minimal.a 
+        /usr/local/lib/libnuma.a
     )
 endif()
 #-------------------------------------------------------------------------------

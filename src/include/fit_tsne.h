@@ -53,8 +53,12 @@ template<typename RandomAccessRange>
 adjacency_list make_adj_list(const vint n, const RandomAccessRange& es);
 
 template <typename T>
+void save_cpu(std::string filename, T * host_arr, int size);
+
+template <typename T>
 void save_coo(std::string filename, thrust::device_vector<T> device_vec, int num_nonzero); 
 
+void dump_edges(std::string filename, std::vector<edge_list::edge> edges);
 void RunTsne(tsnecuda::Options &opt, tsnecuda::GpuOptions &gpu_opt);
 }
 

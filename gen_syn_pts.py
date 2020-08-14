@@ -21,7 +21,7 @@ iterations = int(sys.argv[8])
 x, y = make_classification(n_samples=num_points, n_features=num_dims,
     n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep,
     n_clusters_per_class=1, scale=10.0,
-    n_classes=4,shuffle=True,random_state=42)
+    n_classes=num_clusters,shuffle=True,random_state=42)
 
 x = x.astype('float32')
 

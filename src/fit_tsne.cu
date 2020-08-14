@@ -43,7 +43,7 @@ std::vector<edge_list::edge> tsnecuda::gen_edgelist(int *row_ptr, int *col_ind, 
       counter++;
       temp_counter++;
     }
-    else { temp_counter = 0; row_ind++;num_nnz_row = row_ptr[row_ind + 1];}
+    else { temp_counter = 0; row_ind++;num_nnz_row = row_ptr[row_ind + 1] - row_ptr[row_ind];}
   }
   //assert(edges != NULL);
   assert(edges.size() == num_nnz);
@@ -51,6 +51,17 @@ std::vector<edge_list::edge> tsnecuda::gen_edgelist(int *row_ptr, int *col_ind, 
   return edges;
 }
 
+void tsnecuda::dump_edges(std::string filename, std::vector<edge_list::edge> edges){
+  std::ofstream dump_edges;
+  dump_edges.open("dump_edges.out");
+  
+  for(auto edge : edges) {
+    dump_edges << std::get<0>(edge) << " " << std::get<1>(edge) << std::endl;
+  }
+  
+  dump_edges.close();
+  
+}
 template<typename RandomAccessRange>
 tsnecuda::adjacency_list tsnecuda::make_adj_list(const vint n, const RandomAccessRange& es) {
   using std::get;
@@ -133,18 +144,26 @@ struct copy_idx_func : public thrust::unary_function<unsigned, unsigned>
       return newrow*c+mycol;
     }
 };
+//Save CPU array to file
+template <typename T>
+void tsnecuda::save_cpu(std::string filename, T * host_arr, int size) {
+    std::ofstream dump_file;
+    dump_file.open(filename + std::to_string(size));
+    for(int i=0;i<size;i++){
+      dump_file << host_arr[i] << std::endl;
+    }
+    dump_file.close();
+}
 //Save GPU array to file
 template <typename T>
 void tsnecuda::save_coo(std::string filename, thrust::device_vector<T> device_vec, int size_coo ) {
+    std::cout << "Entered save_coo" << std::endl;
     std::ofstream dump_coo;
     T *h_coo = (T *)malloc((size_coo * 2)*sizeof(T));
     cudaMemcpy(h_coo, thrust::raw_pointer_cast(device_vec.data()), sizeof(T)*(size_coo*2), cudaMemcpyDeviceToHost);
-
-    dump_coo.open(filename + std::to_string(size_coo));
-    for(int i=0;i<size_coo*2;i++) {
-      dump_coo << h_coo[i] << " ";
-    }
-    dump_coo.close();
+    std::cout << "Allocated memory" << std::endl;
+    save_cpu(filename, h_coo, size_coo*2);
+    
 }
 
 //Split string
@@ -199,7 +218,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         std::cout << "E: Invalid options file. Terminating." << std::endl;
         return;
     }
-
+	std::cout << "Start" << std::endl;
     START_IL_TIMER();
 
     if (opt.verbosity > 0) {
@@ -425,10 +444,10 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::ofstream vals_file;
     std::ofstream row_file;
     std::ofstream ind_file;
-    vals_file.open("vals_" + std::to_string(opt.num_points));
-    row_file.open("rows_" + std::to_string(opt.num_points));
-    ind_file.open("ind_" + std::to_string(opt.num_points));
-
+    //vals_file.open("vals_" + std::to_string(opt.num_points));
+    //row_file.open("rows_" + std::to_string(opt.num_points));
+    //ind_file.open("ind_" + std::to_string(opt.num_points));
+/*
       for(int i=0; i<num_nonzero; i++){
         vals_file << h_pij_vals2[i] << " ";
       }
@@ -438,18 +457,20 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       for(int i=0; i<num_nonzero; i++){
         ind_file << h_pij_col_ind2[i] << " ";
       }
-
+*/
 
     //permute the pij sparse matrix
     std::cout << "Num num_nonzero: " << num_nonzero << std::endl;
     tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, num_points, num_nonzero);
-    
-    tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
-    START_IL_REORDER();
+    std::cout << "just after first csr2coo..." << std::endl;
+    //tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
+    std::cout << "just after savecoo" << std::endl;
+    //START_IL_REORDER();
 //======
 //============================================================================================================== 
     //RCM Reorder
     if(opt.reorder==1) {
+      std::cout << "Entered RCM branch" << std::endl;
       START_IL_TIMER();
       int issym = 0;
       int *h_Q = NULL;
@@ -551,7 +572,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
    //Rabbit Order
    else if(opt.reorder==2){
-    
+    std::cout << "Entered Rabbit reorder branch..." << std::endl;
+    START_IL_TIMER();
     int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
       
       cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
@@ -559,7 +581,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
       
       cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
+    END_IL_TIMER(_time_hostcopy);
+
+    START_IL_TIMER();
     std::vector<edge_list::edge> edges = gen_edgelist(h_pij_row_ptr, h_pij_col_ind, num_points, num_nonzero);
+    //dump_edges("du", edges);
+    
+    //assert(0==1);
     auto adj = make_adj_list(num_points, edges);
     std::cerr << "Generating a permutation...\n";
     const double tstart = rabbit_order::now_sec();
@@ -568,19 +596,28 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     const auto p = rabbit_order::compute_perm(g);
     //-----------------------------------------------------
     vint *perm1 = p.get();
+
     int *perm = (int *)malloc(sizeof(int)*num_points);
+
+    //for(int i=0; i<num_points;i++){
+    //  perm[i] = int(perm1[i]);
+    //}
     //Convert vint array to int - ToDo: Just use ints in Rabbit Order
     for(int i = 0; i < num_points;i++)
     {
       perm[int(perm1[i])] = i;
     }
+    std::cout << "Finished inverting the perm vector. Size: " << sizeof(perm1) <<std::endl;  
+    free(perm1);
     
-    //free(perm1);
-    
+    END_IL_TIMER(_time_perm);
 
     assert(perm != NULL);
-    assert(sizeof(perm) == ((num_points)*sizeof(int)));
-
+    //assert(sizeof(perm) == ((num_points)*sizeof(int)));
+    
+    int arr_size = sizeof(perm)/sizeof(perm[0]);
+    std::cout << "Array Size: " << arr_size << std::endl;
+    //save_cpu("permRab", perm, num_points );
     int *h_mapBfromA = NULL;
       
       cusolverSpHandle_t sol_handle = NULL;
@@ -619,8 +656,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       {
             h_pij_vals[j] = h_pij_vals[ h_mapBfromA[j] ];
       }
-	    END_IL_TIMER(_time_mapping);
-           delete [] h_mapBfromA;
+      END_IL_TIMER(_time_mapping);
+      delete [] h_mapBfromA;
       delete [] perm;
       if (buffer_cpu) {free(buffer_cpu);}
       if (sol_handle) { checkCudaErrors(cusolverSpDestroy(sol_handle)); }
@@ -652,109 +689,16 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
    }
-   else if(opt.reorder==8){
-     int *h_mapBfromA = NULL;
-      //float *h_pij_vals_b = NULL;
-      //int *h_pij_col_ind_b = NULL;      
-      cusolverSpHandle_t sol_handle = NULL;
-      checkCudaErrors(cusolverSpCreate(&sol_handle));
-       std::cout << "Created sparse solver handle" << std::endl;
-      float *h_pij_vals = (float *)malloc((num_nonzero)*sizeof(float));
-      //h_pij_vals = thrust::raw_pointer_cast(sparse_pij_device.data());
-      cudaMemcpy(h_pij_vals, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
-      
-      int *h_pij_row_ptr = (int *)malloc((num_points+1)*sizeof(int));
-      //h_pij_row_ptr = thrust::raw_pointer_cast(pij_row_ptr_device.data());
-      cudaMemcpy(h_pij_row_ptr, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
-
-      int *h_pij_col_ind = (int *)malloc((num_nonzero)*sizeof(int));
-      //h_pij_col_ind = thrust::raw_pointer_cast(pij_col_ind_device.data());
-      cudaMemcpy(h_pij_col_ind, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
-
-      //h_Q = (int *)malloc(sizeof(int)*num_points);
-      //h_pij_row_ptr_b = (int *)malloc(sizeof(int)*(num_points+1));
-      //h_pij_col_ind_b = (int *)malloc(sizeof(int)*(num_nonzero));
-      //h_pij_vals_b = (float *)malloc(sizeof(float)*(num_nonzero));
-      h_mapBfromA = (int *)malloc(sizeof(int)*num_nonzero);
-      
-      //check if memory has been allocated without any issues
-      //assert(NULL != h_Q);
-      //assert(NULL != h_pij_row_ptr_b);
-      //assert(NULL != h_pij_col_ind_b);
-      //assert(NULL != h_pij_vals_b   );
-      assert(NULL != h_mapBfromA);
-
-     int *h_Q = (int *)malloc(sizeof(int)*num_points);
-
-     std::string line;
-     std::ifstream myfile ("edg_perm.out");
-     if(myfile.is_open())
-     {
-      int i = 0;
-      while(std::getline(myfile,line)){
-        h_Q[i] = std::atoi(line.c_str());
-        i += 1;  
-      }
-       size_t size_perm = 0;
-       void *buffer_cpu = NULL;
-       
-       START_IL_TIMER();
-       checkCudaErrors(cusolverSpXcsrperm_bufferSizeHost(sol_handle,num_points ,num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr,h_pij_col_ind, h_Q, h_Q, &size_perm));
-       END_IL_TIMER(_time_reord_buff);
-
-       buffer_cpu = (void*)malloc(sizeof(char)*size_perm);
-       assert(NULL!=buffer_cpu);
-       for(int j = 0; j< num_nonzero; j++) {
-        h_mapBfromA[j] = j;
-       }
-
-       START_IL_TIMER();
-       checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, h_Q, h_Q, h_mapBfromA, buffer_cpu) );
-       END_IL_TIMER(_time_reorder);
-
-     }
-       std::vector<int> v_row_ptr(h_pij_row_ptr, h_pij_row_ptr + (num_points+1));
-       if (h_pij_row_ptr) { free(h_pij_row_ptr);}
-       thrust::host_vector<int> row_temp(v_row_ptr);
-
-       std::vector<int> v_col_ind(h_pij_col_ind, h_pij_col_ind + (num_nonzero));
-       if (h_pij_col_ind) {free(h_pij_col_ind);}
-       thrust::host_vector<int> col_temp(v_col_ind);
-
-       std::vector<float> v_vals(h_pij_vals, h_pij_vals + (num_nonzero+1));
-       if(h_pij_vals) { free(h_pij_vals);}
-       thrust::host_vector<float> vals_temp(v_vals);
-       
-       pij_row_ptr_device = row_temp;
-       pij_col_ind_device = col_temp;
-       sparse_pij_device = vals_temp;
-
-    }
-    else if(opt.reorder==9) {
-      int *h_Q = (int *)malloc(sizeof(int)*num_points);
-
-      std::string line;
-      std::ifstream myfile ("edg_perm.out");
-      if(myfile.is_open())
-      {
-        int i = 0;
-        while(std::getline(myfile,line)){
-          h_Q[i] = std::atoi(line.c_str());
-          i += 1;  
-        }
-        thrust::device_vector<int> d_Q(h_Q, h_Q+num_points);
-        thrust::device_vector<int> d_Q_new(h_Q, h_Q+num_points);
-      tsnecuda::util::permuteCoo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, d_Q, d_Q_new, num_points, num_nonzero);
-    }
-    }
-   END_IL_REORDER(_time_tot_perm);
+    //END_IL_REORDER(_time_tot_perm);
+    std::cout << "Before nonzero2" << std::endl;
     if(opt.reorder != 9){ 
+      std::cout << "before 2. csr2coo" << std::endl;
       tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
                             pij_col_ind_device, num_points, num_nonzero);
     }
     std::cout << "Num nonzero 2: " << num_nonzero << std::endl;
     
-    tsnecuda::save_coo("coo_after_", coo_indices_device, num_nonzero);
+    //tsnecuda::save_coo("coo_after_", coo_indices_device, num_nonzero);
     // FIT-TNSE Parameters
     int n_interpolation_points = 3;
     // float intervals_per_integer = 1;
@@ -1114,7 +1058,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.return_style == tsnecuda::RETURN_STYLE::SNAPSHOT && opt.return_data != nullptr) {
       thrust::copy(points_device.begin(), points_device.end(), snap_num*opt.num_points*2 + opt.return_data);
     }
-    if (opt.verbosity > 0) {
+    if (opt.verbosity > 1) {
         std::ofstream reptimes_file;
         reptimes_file.open("./reptimes_" + std::to_string(opt.num_points/1000) + ".txt");
         //dump the values of sparse array Pij

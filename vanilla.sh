@@ -13,14 +13,20 @@
 
 ########## Command Lines to Run ##########
  
-module load GCC/8.3.0 GCCcore/8.3.0 CUDA/10.1.243 OpenBLAS CMake Python/3.7.4  ### load necessary modules, e.g.
- 
-cd /mnt/home/dikbayir/perm-tsne/tsnecuda/                   ### change to the directory where your code is located
+module load GCC/8.3.0 GCCcore/8.3.0 CUDA/10.1.243 OpenBLAS CMake Python/3.7.4 numactl ### load necessary modules, e.g.
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/mnt/home/dikbayir/bin_gperf/lib
+cd /mnt/home/dikbayir/rabbitTSNE/tsnecuda/                   ### change to the directory where your code is located
 
-python ./gen_syn_pts.py 8000000 50 15 150 1 1 4 4000 > re_8M_4K_006.out
-python ./gen_syn_pts.py 8000000 50 15 150 1 0 4 4000 > va_8M_4K_006.out
-python ./gen_syn_pts.py 8000000 50 15 150 1 1 4 8000 > re_8M_8k_006.out
-python ./gen_syn_pts.py 8000000 50 15 150 1 0 4 8000 > va_8M_8k_006.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 4 1000 > rab_8M_4.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 64 1000 > rab_8M_64.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 512 1000 > rab_8M_512.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 2048 1000 > rab_8M_2048.out
+
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 4 2000 > 2krab_8M_4.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 64 2000 > 2krab_8M_64.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 512 2000 > 2krab_8M_512.out
+LD_RELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ./gen_syn_pts.py 8000000 50 15 150 2 2 2048 2000 > 2krab_8M_2048.out
+
 
 
 

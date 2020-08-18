@@ -1,6 +1,7 @@
 tsne_utils
 compile_commands.json
 
+CMakeLists.txt
 knn_*
 ind_*
 rows_*

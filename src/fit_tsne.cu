@@ -212,6 +212,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     auto _time_norm = duration;
     auto _time_attr = duration;
     auto _time_apply_forces = duration;
+    auto _time_map_points = duration;
 
     // Check the validity of the options file
     if (!opt.validate()) {
@@ -650,6 +651,28 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, perm, perm, h_mapBfromA, buffer_cpu) );
        END_IL_TIMER(_time_reorder);
       
+      //Map the points
+      float *h_pts = (float *)malloc(sizeof(float)*(num_points*2));
+      float *h_pts_B = (float *)malloc(sizeof(float)*(num_points*2));
+
+      cudaMemcpy(h_pts, thrust::raw_pointer_cast(points_device.data()), sizeof(float)*(num_points*2), cudaMemcpyDeviceToHost);
+
+
+      START_IL_TIMER();
+      for(int j = 0; j < num_points; j++) {
+            h_pts_B[2*j] = h_pts[2*perm[j]];
+            h_pts_B[2*j+1] = h_pts[2*perm[j]+1];      
+      }
+      
+      std::vector<float> v_pts(h_pts_B, h_pts_B + (num_points*2));
+      if (h_pij_vals) {free(h_pij_vals);}
+      if (h_pts) {free(h_pts);}
+      if (h_pts_B) {free(h_pts_B);}
+
+      thrust::host_vector<float> pts_temp(v_pts);
+      points_device = pts_temp;
+
+      END_IL_TIMER(_time_map_points);
        //Map the values
       START_IL_TIMER();
       for(int j = 0 ; j < num_nonzero ; j++)

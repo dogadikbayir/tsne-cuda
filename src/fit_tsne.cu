@@ -650,7 +650,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        START_IL_TIMER();
        checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, perm, perm, h_mapBfromA, buffer_cpu) );
        END_IL_TIMER(_time_reorder);
-      
+      /*
       //Map the points
       float *h_pts = (float *)malloc(sizeof(float)*(num_points*2));
       float *h_pts_B = (float *)malloc(sizeof(float)*(num_points*2));
@@ -673,6 +673,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       points_device = pts_temp;
 
       END_IL_TIMER(_time_map_points);
+	*/
        //Map the values
       START_IL_TIMER();
       for(int j = 0 ; j < num_nonzero ; j++)
@@ -814,15 +815,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
 
-    // Dump file
-    float *host_ys = nullptr;
-    std::ofstream dump_file;
-    if (opt.get_dump_points()) {
-        dump_file.open("pts_Y_" + std::to_string(opt.num_points));
-        host_ys = new float[num_points * 2];
-        dump_file << num_points << " " << 2 << std::endl;
-    }
-
+    
     #ifndef NO_ZMQ
         bool send_zmq = opt.get_use_interactive();
         zmq::context_t context(1);
@@ -870,6 +863,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<float> rep_force_times;
     // Support for infinite iteration
     float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
+    float *host_ys = nullptr;
+    std::ofstream dump_file;
 
     for (size_t step = 0; step != opt.iterations; step++) {
 
@@ -1013,8 +1008,15 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             send_zmq = res;
             }
         #endif
+	
+        if (opt.get_dump_points() && (step+1) % opt.get_dump_interval() == 0) {
+	    // Dump file
+    	    if (opt.get_dump_points()) {
+        	dump_file.open("iter_" + std::to_string(step+1) + "_pts_Y_" + std::to_string(opt.num_points));
+        	host_ys = new float[num_points * 2];
+        	dump_file << num_points << " " << 2 << std::endl;
+    	    }
 
-        if (opt.get_dump_points() && step % opt.get_dump_interval() == 0) {
             thrust::copy(points_device.begin(), points_device.end(), host_ys);
             for (int i = 0; i < opt.num_points; i++) {
                 dump_file << host_ys[i] << " " << host_ys[i + num_points] << std::endl;

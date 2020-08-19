@@ -17,6 +17,10 @@ option = int(sys.argv[5])
 reorder = int(sys.argv[6])
 num_clusters = int(sys.argv[7])
 iterations = int(sys.argv[8])
+d_intervals = int(sys.argv[9])
+d_pts = False
+if d_intervals > 0:
+  d_pts = True
 
 x, y = make_classification(n_samples=num_points, n_features=num_dims,
     n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep,
@@ -29,12 +33,15 @@ if option == 0:
   np.savetxt(str(num_points) + ".data", x, delimiter=" ", fmt='%f')
 
 elif option == 1:
-  x = np.loadtxt('/home/dogadikbayir/mnist.csv', delimiter=",")
-  X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
+  x = np.loadtxt('/home/dikbayir/mnist.csv', delimiter=",")
+  X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True, dump_points=d_pts, dump_interval=d_intervals).fit_transform(x)
 
 elif option == 2:
   X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
 
+elif option == 3:
+  x = np.loadtxt('vectors2.txt', delimiter = ' ')
+  X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True, dump_points=d_pts, dump_interval=d_intervals).fit_transform(x)
 else:
   print("Inside faiss branch")
   start = time.perf_counter()

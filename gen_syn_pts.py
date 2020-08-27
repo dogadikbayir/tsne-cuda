@@ -18,6 +18,8 @@ reorder = int(sys.argv[6])
 num_clusters = int(sys.argv[7])
 iterations = int(sys.argv[8])
 d_intervals = int(sys.argv[9])
+kNumCellsToProbe = int(sys.argv[10])
+
 d_pts = False
 if d_intervals > 0:
   d_pts = True
@@ -40,8 +42,10 @@ elif option == 2:
   X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
 
 elif option == 3:
-  x = np.loadtxt('vectors2.txt', delimiter = ' ')
-  X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True, dump_points=d_pts, dump_interval=d_intervals).fit_transform(x)
+  x = np.loadtxt('/mnt/home/dikbayir/perm-tsne/tsne-cuda/vectors2.txt', delimiter = ' ')
+  X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True,
+      dump_points=d_pts, dump_interval=d_intervals,
+      kNumCellsToProbe=kNumCellsToProbe).fit_transform(x)
 else:
   print("Inside faiss branch")
   start = time.perf_counter()

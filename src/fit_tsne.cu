@@ -284,7 +284,9 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         std::cout << "done.\nKNN Computation... " << std::flush;
     }
     // Compute approximate K Nearest Neighbors and squared distances
-    tsnecuda::util::KNearestNeighbors(gpu_opt, knn_indices, knn_squared_distances, high_dim_points, high_dim, num_points, num_neighbors);
+    tsnecuda::util::KNearestNeighbors(gpu_opt, knn_indices,
+        knn_squared_distances, high_dim_points, high_dim, num_points,
+        num_neighbors, opt.kNumCellsToProbe);
     END_IL_TIMER(_time_knn);
     START_IL_TIMER();
     thrust::device_vector<long> knn_indices_long_device(knn_indices, knn_indices + num_points * num_neighbors);
@@ -863,9 +865,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::vector<float> rep_force_times;
     // Support for infinite iteration
     float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
-    float *host_ys = nullptr;
-    std::ofstream dump_file;
-
+   
     for (size_t step = 0; step != opt.iterations; step++) {
 
         START_IL_TIMER();
@@ -1008,19 +1008,45 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             send_zmq = res;
             }
         #endif
-	
+	       float *host_ys = nullptr;
+         std::ofstream dump_file;
+
         if (opt.get_dump_points() && (step+1) % opt.get_dump_interval() == 0) {
 	    // Dump file
-    	    if (opt.get_dump_points()) {
-        	dump_file.open("iter_" + std::to_string(step+1) + "_pts_Y_" + std::to_string(opt.num_points));
+    	    
+        	dump_file.open("iter_" + std::to_string(step+1) + "_mode_" + std::to_string(opt.reorder) + "_pts_Y_" + std::to_string(opt.num_points));
         	host_ys = new float[num_points * 2];
-        	dump_file << num_points << " " << 2 << std::endl;
-    	    }
+        	//dump_file << num_points << " " << 2 << std::endl;
+    	    
 
             thrust::copy(points_device.begin(), points_device.end(), host_ys);
             for (int i = 0; i < opt.num_points; i++) {
                 dump_file << host_ys[i] << " " << host_ys[i + num_points] << std::endl;
             }
+        dump_file.close();
+        PRINT_IL_TIMER(_time_initialization);
+        PRINT_IL_TIMER(_time_knn);
+        PRINT_IL_TIMER(_time_knn2);
+        PRINT_IL_TIMER(_time_normknn);
+        PRINT_IL_TIMER(_time_symmetry);
+        PRINT_IL_TIMER(_time_perm);
+        PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_reord_buff);
+        PRINT_IL_TIMER(_time_mapping);
+        PRINT_IL_TIMER(_time_hostcopy);
+        PRINT_IL_TIMER(_time_devicecopy);
+        PRINT_IL_TIMER(_time_tot_perm);
+        PRINT_IL_TIMER(_time_init_low_dim);
+        PRINT_IL_TIMER(_time_init_fft);
+        PRINT_IL_TIMER(_time_compute_charges);
+        PRINT_IL_TIMER(_time_precompute_2d);
+        PRINT_IL_TIMER(_time_nbodyfft);
+        PRINT_IL_TIMER(_time_norm);
+        PRINT_IL_TIMER(_time_attr);
+        PRINT_IL_TIMER(_time_apply_forces);
+        PRINT_IL_TIMER(_time_other);
+        PRINT_IL_TIMER(total_time);
+
         }
 
         // // Handle snapshoting
@@ -1071,11 +1097,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
     // Clean up the dump file if we are dumping points
-    if (opt.get_dump_points()){
-      delete[] host_ys;
-      dump_file.close();
-    }
-
+   
     // Handle a once off return type
     if (opt.return_style == tsnecuda::RETURN_STYLE::ONCE && opt.return_data != nullptr) {
       thrust::copy(points_device.begin(), points_device.end(), opt.return_data);

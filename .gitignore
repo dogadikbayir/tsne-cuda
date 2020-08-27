@@ -1,6 +1,7 @@
 tsne_utils
 compile_commands.json
 
+*.tar.gz
 cleanspace.py
 *.data
 iter_*
@@ -8,7 +9,7 @@ pts_*
 *.out2
 *.run
 *.txt
-CMakeLists.*
+CMakeLists.txt
 knn_*
 ind_*
 rows_*

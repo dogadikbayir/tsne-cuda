@@ -63,6 +63,7 @@ namespace tsnecuda {
             float* preinit_data = nullptr;
 
             // Verbosity control
+            int kNumCellsToProbe = 2;
             int verbosity = 20;
             int reorder = 1;
             int reopt = 0;
@@ -123,7 +124,8 @@ namespace tsnecuda {
                     verbosity(verbosity),
                     print_interval(print_interval),
                     reorder(reorder),
-                    reopt(reopt)
+                    reopt(reopt),
+                    kNumCellsToProbe(kNumCellsToProbe)
                     {this->random_seed = time(NULL);}
 
             bool enable_dump(std::string filename, int interval = 1) {

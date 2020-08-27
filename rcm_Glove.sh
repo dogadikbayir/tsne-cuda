@@ -21,14 +21,14 @@ cd ./build/python/
 pip3 install --user -e .
 
 cd ../../
-mkdir v100vanGlove
-cd v100vanGlove
-mkdir glove
+mkdir v100RCMGlove
+cd v100RCMGlove
+mkdir rcm
 
 export OMP_NUM_THREADS=40
-cd glove
+cd rcm
 
-LD_PRELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ../../gen_syn_pts.py 8000000 50 15 150 3 0 4 20000 1000 > vanilla_v100_Glove_20k.out
+LD_PRELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ../../gen_syn_pts.py 8000000 50 15 150 3 1 4 10000 1000 > rcm_v100_Glove_10k.out
 
 
 

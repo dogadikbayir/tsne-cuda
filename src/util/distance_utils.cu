@@ -76,10 +76,10 @@ void tsnecuda::util::PairwiseDistance(cublasHandle_t &handle,
 void tsnecuda::util::KNearestNeighbors(tsnecuda::GpuOptions &gpu_opt,
         int64_t* indices, float* distances,
         const float* const points, const int num_dims,
-        const int num_points, const int num_near_neighbors) {
+        const int num_points, const int num_near_neighbors, const int kNumCellsToProbe) {
     const int32_t kNumCells = static_cast<int32_t>(
             std::sqrt(static_cast<float>(num_points)));
-    const int32_t kNumCellsToProbe = 20;
+    //int32_t kNumCellsToProbe = _kNumCellsToProbe;
 
     if (true) {
         // const int32_t kSubQuant = 2;

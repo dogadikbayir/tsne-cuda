@@ -58,7 +58,8 @@ void pymodule_tsne(float *result,
                    int return_style,
                    int num_snapshots,
                    int reorder,
-                   int reopt);
+                   int reopt,
+                   int kNumCellsToProbe);
 
 }
 

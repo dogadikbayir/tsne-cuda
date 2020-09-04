@@ -1,12 +1,31 @@
 import numpy as np
 import sys
 import os
+import gensim
+from gensim.models import KeyedVectors as Word2VecLoader
 
 #import faiss
 import time
 from tsnecuda import TSNE
 
 from sklearn.datasets import make_classification
+
+def fvecs_read(filename, c_contiguous=True):
+  fv = np.fromfile(filename, dtype=np.float32)
+  if fv.size == 0:
+    return np.zeros((0,0))
+
+  dim = fv.view(np.int32)[0]
+  assert dim > 0
+
+  fv = fv.reshape(-1, 1 + dim)
+  if not all(fv.view(np.int32)[:,0] == dim):
+    raise IOError("Non-uniform vector sizes in " + filename)
+
+  fv = fv[:, 1:]
+  if c_contiguous:
+    fv = fv.copy()
+  return fv
 
 num_points = int(sys.argv[1])
 num_dims = int(sys.argv[2])
@@ -24,12 +43,6 @@ d_pts = False
 if d_intervals > 0:
   d_pts = True
 
-x, y = make_classification(n_samples=num_points, n_features=num_dims,
-    n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep,
-    n_clusters_per_class=1, scale=10.0,
-    n_classes=num_clusters,shuffle=True,random_state=42)
-
-x = x.astype('float32')
 
 if option == 0:
   np.savetxt(str(num_points) + ".data", x, delimiter=" ", fmt='%f')
@@ -39,13 +52,35 @@ elif option == 1:
   X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True, dump_points=d_pts, dump_interval=d_intervals).fit_transform(x)
 
 elif option == 2:
-  X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True).fit_transform(x)
+  x, y = make_classification(n_samples=num_points, n_features=num_dims, n_redundant=int(num_dims/2), n_informative=int(num_dims/2), class_sep=sep, n_clusters_per_class=1, scale=10.0, n_classes=num_clusters,shuffle=True,random_state=42)
+
+  x = x.astype('float32')
+
+  X_emb = TSNE(reorder=reorder,n_iter=iterations,verbose=True,
+      dump_points=d_pts, dump_interval=d_intervals,
+      kNumCellsToProbe=kNumCellsToProbe).fit_transform(x)
 
 elif option == 3:
   x = np.loadtxt('/mnt/home/dikbayir/perm-tsne/tsne-cuda/vectors2.txt', delimiter = ' ')
   X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True,
       dump_points=d_pts, dump_interval=d_intervals,
       kNumCellsToProbe=kNumCellsToProbe).fit_transform(x)
+elif option == 4:
+  word2vec_model = '/mnt/home/dikbayir/GoogleNews-vectors-negative300.bin'
+  model = Word2VecLoader.load_word2vec_format(word2vec_model, binary=word2vec_model.endswith('bin'))
+  x = model.vectors
+  X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True,
+      dump_points=d_pts, dump_interval=d_intervals,
+      kNumCellsToProbe=kNumCellsToProbe).fit_transform(x)
+elif option == 5:
+  x = fvecs_read('/mnt/home/dikbayir/deep10M.fvecs')
+  x = x[:num_points,:]
+  print(x.shape)
+  
+  X_emb = TSNE(reorder=reorder, n_iter=iterations, verbose=True,
+      dump_points=d_pts, dump_interval=d_intervals,
+      kNumCellsToProbe=kNumCellsToProbe).fit_transform(x)
+ 
 else:
   print("Inside faiss branch")
   start = time.perf_counter()

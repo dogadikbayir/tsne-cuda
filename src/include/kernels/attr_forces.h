@@ -17,8 +17,6 @@ namespace tsnecuda {
 
 void ComputeAttractiveForces(
                     tsnecuda::GpuOptions &gpu_opt,
-                    cusparseHandle_t &handle,
-                    cusparseMatDescr_t &descr,
                     thrust::device_vector<float> &attr_forces,
 		    //thrust::device_vector<float> &pijqij,
                     thrust::device_vector<float> &sparse_pij,
@@ -26,12 +24,7 @@ void ComputeAttractiveForces(
                     thrust::device_vector<int> &pij_col_ind,
                     thrust::device_vector<int> &coo_indices,
                     thrust::device_vector<float> &points,
-                    thrust::device_vector<float> &ones,
                     const int num_points,
-                    float &time_firstSPDM,
-                    float &time_secondSPDM,
-                    float &time_mul,
-                    float &time_pijkern,
                     const int num_nonzero);
 }
 

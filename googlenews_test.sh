@@ -21,16 +21,20 @@ cd ./build/python/
 pip3 install --user -e .
 
 cd ../../
-mkdir v100vanGlove
-cd v100vanGlove
-mkdir glove
+mkdir GNtests
+cd GNtests
+mkdir vanilla
+cd vanilla
 
 export OMP_NUM_THREADS=40
-cd glove
 
-LD_PRELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ../../gen_syn_pts.py 8000000 50 15 150 3 0 4 20000 1000 > vanilla_v100_Glove_20k.out
+LD_PRELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ../../gen_syn_pts.py 8000000 50 15 150 4 0 4 10000 1000 10 > prb10_v100_GoogleNews_10k_vanilla.out
 
+cd ..
+mkdir rabbit
+cd rabbit
 
+LD_PRELOAD=/mnt/home/dikbayir/bin_gperf/lib/libtcmalloc_minimal.so python ../../gen_syn_pts.py 8000000 50 15 150 4 2 4 10000 1000 10 > prb10_v100_GoogleNews_10k_rab.out
 
 scontrol show job $SLURM_JOB_ID     ### write job information to SLURM output file
 js -j $SLURM_JOB_ID                 ### write resource usage to SLURM output file (powetools command)

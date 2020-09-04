@@ -213,6 +213,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     auto _time_attr = duration;
     auto _time_apply_forces = duration;
     auto _time_map_points = duration;
+    auto _time_forces = duration;
 
     // Check the validity of the options file
     if (!opt.validate()) {
@@ -225,7 +226,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.verbosity > 0) {
         std::cout << "Initializing cuda handles... " << std::flush;
     }
-
+    cudaSetDevice(0);
     // Construct the handles
     cublasHandle_t dense_handle;
     CublasSafeCall(cublasCreate(&dense_handle));
@@ -355,7 +356,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     thrust::device_vector<float> gains_device(opt.num_points * 2, 1);
     thrust::device_vector<float> old_forces_device(opt.num_points * 2, 0); // for momentum
     thrust::device_vector<float> normalization_vec_device(opt.num_points);
-    thrust::device_vector<float> ones_device(opt.num_points * 2, 1); // This is for reduce summing, etc.
+    //thrust::device_vector<float> ones_device(opt.num_points * 2, 1); // This is for reduce summing, etc.
     thrust::device_vector<int> coo_indices_device(sparse_pij_device.size()*2);
 
     //tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
@@ -751,7 +752,11 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     int n_fft_coeffs_half = n_interpolation_points * n_boxes_per_dim;
     int n_fft_coeffs = 2 * n_interpolation_points * n_boxes_per_dim;
     int n_interpolation_points_1d = n_interpolation_points * n_boxes_per_dim;
-
+    
+    cudaDeviceEnablePeerAccess(1,0);
+    //Multi-GPU init
+    cudaSetDevice(1);
+    cudaDeviceEnablePeerAccess(0,0); //enable p2p access
     // FIT-TSNE Device Vectors
     thrust::device_vector<int> point_box_idx_device(N);
     thrust::device_vector<float> x_in_box_device(N);
@@ -867,76 +872,18 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
    
     for (size_t step = 0; step != opt.iterations; step++) {
+        omp_set_num_threads(2);
 
         START_IL_TIMER();
-        float fill_value = 0;
-        thrust::fill(w_coefficients_device.begin(), w_coefficients_device.end(), fill_value);
-        thrust::fill(potentialsQij_device.begin(), potentialsQij_device.end(), fill_value);
-        // Setup learning rate schedule
-        if (step == opt.force_magnify_iters) {
-            momentum = opt.post_exaggeration_momentum;
-            attr_exaggeration = 1.0f;
-        }
-        END_IL_TIMER(_time_other);
+        #pragma omp parallel
+        {
+          unsigned int cpu_id = omp_get_thread_num();
+          if(cpu_id == 0) {
+            //START_IL_TIMER();
 
-
-
-        // Prepare the terms that we'll use to compute the sum i.e. the repulsive forces
-        START_IL_TIMER();
-        tsnecuda::ComputeChargesQij(chargesQij_device, points_device, num_points, n_terms);
-        END_IL_TIMER(_time_compute_charges);
-
-        // Compute Minimax elements
-        START_IL_TIMER();
-        auto minimax_iter = thrust::minmax_element(points_device.begin(), points_device.end());
-        float min_coord = minimax_iter.first[0];
-        float max_coord = minimax_iter.second[0];
-
-        // Compute the number of boxes in a single dimension and the total number of boxes in 2d
-        // auto n_boxes_per_dim = static_cast<int>(fmax(min_num_intervals, (max_coord - min_coord) / intervals_per_integer));
-
-        tsnecuda::PrecomputeFFT2D(
-            plan_kernel_tilde, max_coord, min_coord, max_coord, min_coord, n_boxes_per_dim, n_interpolation_points,
-            box_lower_bounds_device, box_upper_bounds_device, kernel_tilde_device,
-            fft_kernel_tilde_device);
-
-        float box_width = ((max_coord - min_coord) / (float) n_boxes_per_dim);
-
-        END_IL_TIMER(_time_precompute_2d);
-        START_IL_TIMER();
-
-        
-        tsnecuda::NbodyFFT2D(
-            plan_dft, plan_idft,
-            N, n_terms, n_boxes_per_dim, n_interpolation_points,
-            fft_kernel_tilde_device, n_total_boxes,
-            total_interpolation_points, min_coord, box_width, n_fft_coeffs_half, n_fft_coeffs,
-            fft_input, fft_w_coefficients, fft_output,
-            point_box_idx_device, x_in_box_device, y_in_box_device, points_device,
-            box_lower_bounds_device, y_tilde_spacings_device, denominator_device, y_tilde_values,
-            all_interpolated_values_device, output_values, all_interpolated_indices,
-            output_indices, w_coefficients_device, chargesQij_device, x_interpolated_values_device,
-            y_interpolated_values_device, potentialsQij_device);
-
-        END_IL_TIMER(_time_nbodyfft);
-
-        PRINT_IL_TIMER(_time_nbodyfft);
-        rep_force_times.push_back(((float) duration.count()) / 1000000.0);
-        START_IL_TIMER();
-
-        // Make the negative term, or F_rep in the equation 3 of the paper
-        normalization = tsnecuda::ComputeRepulsiveForces(
-            repulsive_forces_device, normalization_vec_device, points_device,
-            potentialsQij_device, num_points, n_terms);
-
-        END_IL_TIMER(_time_norm);
-        START_IL_TIMER();
-
-
-        // Calculate Attractive Forces            
-        tsnecuda::ComputeAttractiveForces(gpu_opt,
-                                              sparse_handle,
-                                              sparse_matrix_descriptor,
+            cudaSetDevice(0);
+                        // Calculate Attractive Forces            
+            tsnecuda::ComputeAttractiveForces(gpu_opt,
                                               attractive_forces_device,
 					                                    //pijqij,
                                               sparse_pij_device,
@@ -946,15 +893,79 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                               coo_indices_device,
                                               //d_coo_re,
                                               points_device,
-                                              ones_device,
                                               num_points,
-                                              time_firstSPDM,
-                                              time_secondSPDM,
-                                              time_mul,
-                                              time_pijkern,
                                               num_nonzero);
 
-        END_IL_TIMER(_time_attr);
+             //END_IL_TIMER(_time_attr);
+
+          }
+          else{
+            cudaSetDevice(1);
+            float fill_value = 0;
+            thrust::fill(w_coefficients_device.begin(), w_coefficients_device.end(), fill_value);
+            thrust::fill(potentialsQij_device.begin(), potentialsQij_device.end(), fill_value);
+            // Setup learning rate schedule
+            if (step == opt.force_magnify_iters) {
+              momentum = opt.post_exaggeration_momentum;
+              attr_exaggeration = 1.0f;
+            }
+            //END_IL_TIMER(_time_other);
+
+
+
+            // Prepare the terms that we'll use to compute the sum i.e. the repulsive forces
+            //START_IL_TIMER();
+            tsnecuda::ComputeChargesQij(chargesQij_device, points_device, num_points, n_terms);
+            //END_IL_TIMER(_time_compute_charges);
+
+            // Compute Minimax elements
+            //START_IL_TIMER();
+            auto minimax_iter = thrust::minmax_element(points_device.begin(), points_device.end());
+            float min_coord = minimax_iter.first[0];
+            float max_coord = minimax_iter.second[0];
+
+            // Compute the number of boxes in a single dimension and the total number of boxes in 2d
+            // auto n_boxes_per_dim = static_cast<int>(fmax(min_num_intervals, (max_coord - min_coord) / intervals_per_integer));
+
+            tsnecuda::PrecomputeFFT2D(
+                plan_kernel_tilde, max_coord, min_coord, max_coord, min_coord, n_boxes_per_dim, n_interpolation_points,
+                box_lower_bounds_device, box_upper_bounds_device, kernel_tilde_device,
+                fft_kernel_tilde_device);
+
+            float box_width = ((max_coord - min_coord) / (float) n_boxes_per_dim);
+
+            //END_IL_TIMER(_time_precompute_2d);
+            //START_IL_TIMER();
+            tsnecuda::NbodyFFT2D(
+              plan_dft, plan_idft,
+              N, n_terms, n_boxes_per_dim, n_interpolation_points,
+              fft_kernel_tilde_device, n_total_boxes,
+              total_interpolation_points, min_coord, box_width, n_fft_coeffs_half, n_fft_coeffs,
+              fft_input, fft_w_coefficients, fft_output,
+              point_box_idx_device, x_in_box_device, y_in_box_device, points_device,
+              box_lower_bounds_device, y_tilde_spacings_device, denominator_device, y_tilde_values,
+              all_interpolated_values_device, output_values, all_interpolated_indices,
+              output_indices, w_coefficients_device, chargesQij_device, x_interpolated_values_device,
+              y_interpolated_values_device, potentialsQij_device);
+
+            //END_IL_TIMER(_time_nbodyfft);
+
+            //PRINT_IL_TIMER(_time_nbodyfft);
+            //rep_force_times.push_back(((float) duration.count()) / 1000000.0);
+            //START_IL_TIMER();
+
+            // Make the negative term, or F_rep in the equation 3 of the paper
+            normalization = tsnecuda::ComputeRepulsiveForces(
+              repulsive_forces_device, normalization_vec_device, points_device,
+              potentialsQij_device, num_points, n_terms);
+
+            //END_IL_TIMER(_time_norm);
+
+          }
+        }
+        END_IL_TIMER(_time_forces);
+
+        cudaSetDevice(0);
         START_IL_TIMER();
 
         // Apply Forces
@@ -1010,7 +1021,20 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         #endif
 	       float *host_ys = nullptr;
          std::ofstream dump_file;
+        if (((step+1) % 1000) == 0){
+          PRINT_IL_TIMER(_time_init_low_dim);
+          PRINT_IL_TIMER(_time_init_fft);
+          PRINT_IL_TIMER(_time_compute_charges);
+          PRINT_IL_TIMER(_time_precompute_2d);
+          PRINT_IL_TIMER(_time_nbodyfft);
+          PRINT_IL_TIMER(_time_norm);
+          PRINT_IL_TIMER(_time_attr);
+          PRINT_IL_TIMER(_time_forces);
+          PRINT_IL_TIMER(_time_apply_forces);
+          PRINT_IL_TIMER(_time_other);
+          PRINT_IL_TIMER(total_time);
 
+        }
         if (opt.get_dump_points() && (step+1) % opt.get_dump_interval() == 0) {
 	    // Dump file
     	    
@@ -1023,30 +1047,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             for (int i = 0; i < opt.num_points; i++) {
                 dump_file << host_ys[i] << " " << host_ys[i + num_points] << std::endl;
             }
-        dump_file.close();
-        PRINT_IL_TIMER(_time_initialization);
-        PRINT_IL_TIMER(_time_knn);
-        PRINT_IL_TIMER(_time_knn2);
-        PRINT_IL_TIMER(_time_normknn);
-        PRINT_IL_TIMER(_time_symmetry);
-        PRINT_IL_TIMER(_time_perm);
-        PRINT_IL_TIMER(_time_reorder);
-        PRINT_IL_TIMER(_time_reord_buff);
-        PRINT_IL_TIMER(_time_mapping);
-        PRINT_IL_TIMER(_time_hostcopy);
-        PRINT_IL_TIMER(_time_devicecopy);
-        PRINT_IL_TIMER(_time_tot_perm);
-        PRINT_IL_TIMER(_time_init_low_dim);
-        PRINT_IL_TIMER(_time_init_fft);
-        PRINT_IL_TIMER(_time_compute_charges);
-        PRINT_IL_TIMER(_time_precompute_2d);
-        PRINT_IL_TIMER(_time_nbodyfft);
-        PRINT_IL_TIMER(_time_norm);
-        PRINT_IL_TIMER(_time_attr);
-        PRINT_IL_TIMER(_time_apply_forces);
-        PRINT_IL_TIMER(_time_other);
-        PRINT_IL_TIMER(total_time);
-
+            dump_file.close();        
         }
 
         // // Handle snapshoting
@@ -1084,14 +1085,11 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_norm);
         PRINT_IL_TIMER(_time_attr);
         PRINT_IL_TIMER(_time_apply_forces);
+        PRINT_IL_TIMER(_time_forces);
         PRINT_IL_TIMER(_time_other);
         PRINT_IL_TIMER(total_time);
 
-        std::cout << "time_firstSPDM" << ": " << (time_firstSPDM) << "s" << std::endl;
-        std::cout << "time_secondSPDM" << ": " << (time_secondSPDM) << "s" << std::endl;
-        std::cout << "time_mul" << ": " << (time_mul) << "s" << std::endl;
-        std::cout << "time_pijkern" << ": " << (time_pijkern ) << "s" << std::endl;
-
+        
 
     }
 

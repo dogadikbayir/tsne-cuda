@@ -9,7 +9,7 @@
 
 #include "util/math_utils.h"
 
-void tsnecuda::util::GaussianNormalizeDeviceVector(cublasHandle_t &handle,
+void tsnecuda::util::GaussianNormalizeDeviceVector( cublasHandle_t &handle,
         thrust::device_vector<float> &d_points, const int num_points,
         const int num_dims) {
     // Compute the means
@@ -33,17 +33,29 @@ void tsnecuda::util::GaussianNormalizeDeviceVector(cublasHandle_t &handle,
             num_dims, thrust::divides<float>(), 1, 1.f);
 }
 
-void tsnecuda::util::SquareDeviceVector(thrust::device_vector<float> &d_out,
+void tsnecuda::util::SquareDeviceVector(cudaStream_t stream2, thrust::device_vector<float> &d_out,
+        const thrust::device_vector<float> &d_input) {
+    thrust::transform(d_input.begin(), d_input.end(),
+                      d_out.begin(), tsnecuda::util::FunctionalSquare());
+}
+void tsnecuda::util::SquareDeviceVector( thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input) {
     thrust::transform(d_input.begin(), d_input.end(),
                       d_out.begin(), tsnecuda::util::FunctionalSquare());
 }
 
-void tsnecuda::util::SqrtDeviceVector(thrust::device_vector<float> &d_out,
+
+void tsnecuda::util::SqrtDeviceVector(cudaStream_t stream2, thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input) {
     thrust::transform(d_input.begin(), d_input.end(),
                       d_out.begin(), tsnecuda::util::FunctionalSqrt());
 }
+void tsnecuda::util::SqrtDeviceVector( thrust::device_vector<float> &d_out,
+        const thrust::device_vector<float> &d_input) {
+    thrust::transform(d_input.begin(), d_input.end(),
+                      d_out.begin(), tsnecuda::util::FunctionalSqrt());
+}
+
 
 float tsnecuda::util::L2NormDeviceVector(
         const thrust::device_vector<float> &d_vector) {

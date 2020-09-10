@@ -47,6 +47,35 @@ __global__ void tsnecuda::util::BroadcastColumnVector(
 
 template<typename BinaryFunction, typename T>
 void tsnecuda::util::BroadcastMatrixVector(
+        cudaStream_t stream1,
+        thrust::device_vector<T> &d_matrix,
+        const thrust::device_vector<T> &d_vector,
+        const int N,
+        const int M,
+        BinaryFunction binary_operation,
+        const int axis,
+        const T alpha) {
+    // Checks to make sure dimensions are correct
+    assert(d_matrix.size() >= N * M);
+    assert((axis == 0 && d_vector.size() >= N) ||
+            (axis == 1 && d_vector.size() >= M));
+
+    const int kBlockSize = 32;
+    const int kNumBlocks = iDivUp(N * M, kBlockSize);
+    if (axis == 0) {
+    tsnecuda::util::BroadcastColumnVector<<<kNumBlocks, kBlockSize,0,stream1>>>(
+            thrust::raw_pointer_cast(d_matrix.data()),
+            thrust::raw_pointer_cast(d_vector.data()),
+            N, M, binary_operation, alpha);
+    } else {
+    tsnecuda::util::BroadcastRowVector<<<kNumBlocks, kBlockSize,0,stream1>>>(
+            thrust::raw_pointer_cast(d_matrix.data()),
+            thrust::raw_pointer_cast(d_vector.data()),
+            N, M, binary_operation, alpha);
+    }
+}
+template<typename BinaryFunction, typename T>
+void tsnecuda::util::BroadcastMatrixVector(
         thrust::device_vector<T> &d_matrix,
         const thrust::device_vector<T> &d_vector,
         const int N,
@@ -77,11 +106,30 @@ void tsnecuda::util::BroadcastMatrixVector(
 
 // Explicit instantiations of the method
 template void tsnecuda::util::BroadcastMatrixVector<thrust::divides<float>, float>(
+        cudaStream_t stream1,    
         thrust::device_vector<float> &d_matrix,
         const thrust::device_vector<float> &d_vector,
         const int N,
         const int M,
         thrust::divides<float> binary_operation,
+        const int axis,
+        const float alpha);
+template void tsnecuda::util::BroadcastMatrixVector<thrust::divides<float>, float>(    
+        thrust::device_vector<float> &d_matrix,
+        const thrust::device_vector<float> &d_vector,
+        const int N,
+        const int M,
+        thrust::divides<float> binary_operation,
+        const int axis,
+        const float alpha);
+
+template void tsnecuda::util::BroadcastMatrixVector<thrust::minus<float>, float>(
+        cudaStream_t stream1,
+        thrust::device_vector<float> &d_matrix,
+        const thrust::device_vector<float> &d_vector,
+        const int N,
+        const int M,
+        thrust::minus<float> binary_operation,
         const int axis,
         const float alpha);
 template void tsnecuda::util::BroadcastMatrixVector<thrust::minus<float>, float>(
@@ -92,6 +140,16 @@ template void tsnecuda::util::BroadcastMatrixVector<thrust::minus<float>, float>
         thrust::minus<float> binary_operation,
         const int axis,
         const float alpha);
+
+template void tsnecuda::util::BroadcastMatrixVector<thrust::multiplies<thrust::complex<float>>, thrust::complex<float>>(
+        cudaStream_t stream1,
+        thrust::device_vector<thrust::complex<float>> &d_matrix,
+        const thrust::device_vector<thrust::complex<float>> &d_vector,
+        const int N,
+        const int M,
+        thrust::multiplies<thrust::complex<float>> binary_operation,
+        const int axis,
+        const thrust::complex<float> alpha);
 template void tsnecuda::util::BroadcastMatrixVector<thrust::multiplies<thrust::complex<float>>, thrust::complex<float>>(
         thrust::device_vector<thrust::complex<float>> &d_matrix,
         const thrust::device_vector<thrust::complex<float>> &d_vector,

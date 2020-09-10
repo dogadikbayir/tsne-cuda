@@ -57,7 +57,8 @@ void IntegrationKernel(
    }
 }
 
-void tsnecuda::ApplyForces(tsnecuda::GpuOptions &gpu_opt,
+void tsnecuda::ApplyForces(     cudaStream_t stream2,
+                                tsnecuda::GpuOptions &gpu_opt,
                                 thrust::device_vector<float> &points,
                                 thrust::device_vector<float> &attr_forces,
                                 thrust::device_vector<float> &rep_forces,
@@ -71,7 +72,7 @@ void tsnecuda::ApplyForces(tsnecuda::GpuOptions &gpu_opt,
                                 const int num_blocks)
 {
     IntegrationKernel<<<num_blocks * gpu_opt.integration_kernel_factor,
-                                  gpu_opt.integration_kernel_threads>>>(
+                                  gpu_opt.integration_kernel_threads,0 ,stream2>>>(
                     thrust::raw_pointer_cast(points.data()),
                     thrust::raw_pointer_cast(attr_forces.data()),
                     thrust::raw_pointer_cast(rep_forces.data()),
@@ -79,5 +80,5 @@ void tsnecuda::ApplyForces(tsnecuda::GpuOptions &gpu_opt,
                     thrust::raw_pointer_cast(old_forces.data()),
                     eta, normalization, momentum, exaggeration,
                     num_points);
-    GpuErrorCheck(cudaDeviceSynchronize());
+    GpuErrorCheck(cudaStreamSynchronize(stream2));
 }

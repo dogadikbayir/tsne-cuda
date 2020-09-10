@@ -50,14 +50,26 @@ __global__ void BroadcastColumnVector(T * __restrict__ matrix,
 * @note 
 * should axis == 0 be row or column broadcasting? and vice versa for axis == 1?
 */
+
 template<typename BinaryFunction, typename T>
-void BroadcastMatrixVector(thrust::device_vector<T> &d_matrix,
+void BroadcastMatrixVector( cudaStream_t stream1,
+                            thrust::device_vector<T> &d_matrix,
                             const thrust::device_vector<T> &d_vector,
                             const int N,
                             const int M,
                             BinaryFunction binary_operation,
                             const int axis,
                             const T alpha);
+template<typename BinaryFunction, typename T>
+void BroadcastMatrixVector( 
+                            thrust::device_vector<T> &d_matrix,
+                            const thrust::device_vector<T> &d_vector,
+                            const int N,
+                            const int M,
+                            BinaryFunction binary_operation,
+                            const int axis,
+                            const T alpha);
+
 }  // namespace util
 }  // namespace tsnecuda
 

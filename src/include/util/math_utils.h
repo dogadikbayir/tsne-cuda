@@ -38,8 +38,11 @@ void GaussianNormalizeDeviceVector(cublasHandle_t &handle,
 * @param d_input The vector to square
 * @param d_out The output vector
 */
+void SquareDeviceVector(cudaStream_t stream2, thrust::device_vector<float> &d_out,
+        const thrust::device_vector<float> &d_input);
 void SquareDeviceVector(thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input);
+
 
 /**
 * @brief Take the square root of a vector element-wise
@@ -47,8 +50,11 @@ void SquareDeviceVector(thrust::device_vector<float> &d_out,
 * @param d_input The vector to square root
 * @param d_out The output vector
 */
-void SqrtDeviceVector(thrust::device_vector<float> &d_out,
+void SqrtDeviceVector(cudaStream_t stream2, thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input);
+void SqrtDeviceVector( thrust::device_vector<float> &d_out,
+        const thrust::device_vector<float> &d_input);
+
 
 /**
  * @brief Compute the L2 Norm of a device vector

@@ -17,6 +17,7 @@
 namespace tsnecuda {
 
 void ApplyForces(
+                    cudaStream_t stream2,
                     tsnecuda::GpuOptions &gpu_opt,
                     thrust::device_vector<float> &points,
                     thrust::device_vector<float> &attr_forces,

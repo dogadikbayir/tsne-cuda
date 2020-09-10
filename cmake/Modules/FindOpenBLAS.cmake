@@ -8,8 +8,7 @@ SET(Open_BLAS_INCLUDE_SEARCH_PATHS
   /usr/local/include/openblas
   /usr/local/include/openblas-base
   /usr/local/opt/openblas/include
-  /opt/OpenBLAS/include
-  /opt/software/OpenBLAS/0.3.7-GCC-8.3.0/include
+  /usr/lib/x86_64-linux-gnu/openblas-pthread/include
   $ENV{OpenBLAS_HOME}
   $ENV{OpenBLAS_HOME}/include
 )
@@ -24,8 +23,7 @@ SET(Open_BLAS_LIB_SEARCH_PATHS
         /usr/local/lib
         /usr/local/lib64
         /usr/local/opt/openblas/lib
-        /opt/OpenBLAS/lib
-        /opt/software/OpenBLAS/0.3.7-GCC-8.3.0/lib
+        /usr/lib/x86_64-linux-gnu/openblas-pthread/
         $ENV{OpenBLAS}cd
         $ENV{OpenBLAS}/lib
         $ENV{OpenBLAS_HOME}

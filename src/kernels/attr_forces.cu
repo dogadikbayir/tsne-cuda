@@ -48,7 +48,7 @@ void ComputePijxQijKernel(
 }
 
 void tsnecuda::ComputeAttractiveForces(
-                    cudaStream_t stream2,
+                    //cudaStream_t stream2,
                     tsnecuda::GpuOptions &gpu_opt,
                     cusparseHandle_t &handle,
                     cusparseMatDescr_t &descrSp,
@@ -87,14 +87,14 @@ void tsnecuda::ComputeAttractiveForces(
     
     START_IL_TIMER();
 
-    ComputePijxQijKernel<<<NBLOCKS, BLOCKSIZE, 0, stream2>>>(
+    ComputePijxQijKernel<<<NBLOCKS, BLOCKSIZE, 0 >>>(//stream2>>>(
                     thrust::raw_pointer_cast(attr_forces.data()),
                     thrust::raw_pointer_cast(sparse_pij.data()),
                     thrust::raw_pointer_cast(points.data()),
                     thrust::raw_pointer_cast(coo_indices.data()),
                     num_points,
                     num_nonzero);
-    GpuErrorCheck(cudaStreamSynchronize(stream2));
+    //GpuErrorCheck(cudaStreamSynchronize(stream2));
     
     //END_IL_TIMER(time_pijkern_);
     //size_t bufferSize = 0;

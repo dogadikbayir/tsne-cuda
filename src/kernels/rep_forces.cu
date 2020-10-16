@@ -32,7 +32,7 @@ __global__ void compute_repulsive_forces_kernel(
 }
 
 float tsnecuda::ComputeRepulsiveForces(
-    cudaStream_t stream1,
+    //cudaStream_t stream1,
     thrust::device_vector<float> &repulsive_forces_device,
     thrust::device_vector<float> &normalization_vec_device,
     thrust::device_vector<float> &points_device,
@@ -42,14 +42,14 @@ float tsnecuda::ComputeRepulsiveForces(
 {
     const int num_threads = 1024;
     const int num_blocks = (num_points + num_threads - 1) / num_threads;
-    compute_repulsive_forces_kernel<<<num_blocks, num_threads,0, stream1>>>(
+    compute_repulsive_forces_kernel<<<num_blocks, num_threads,0 >>>(//, stream1>>>(
         thrust::raw_pointer_cast(repulsive_forces_device.data()),
         thrust::raw_pointer_cast(normalization_vec_device.data()),
         thrust::raw_pointer_cast(points_device.data()),
         thrust::raw_pointer_cast(points_device.data() + num_points),
         thrust::raw_pointer_cast(potentialsQij.data()),
         num_points, n_terms);
-    float sumQ = thrust::reduce(thrust::cuda::par.on(stream1),
+    float sumQ = thrust::reduce(
         normalization_vec_device.begin(), normalization_vec_device.end(), 0.0f,
         thrust::plus<float>());
     return sumQ - num_points;
@@ -77,7 +77,7 @@ __global__ void compute_chargesQij_kernel(
 }
 
 void tsnecuda::ComputeChargesQij(
-    cudaStream_t stream1,
+    //cudaStream_t stream1,
     thrust::device_vector<float> &chargesQij,
     thrust::device_vector<float> &points_device,
     const int num_points,
@@ -85,7 +85,7 @@ void tsnecuda::ComputeChargesQij(
 {
     const int num_threads = 1024;
     const int num_blocks = (num_points + num_threads - 1) / num_threads;
-    compute_chargesQij_kernel<<<num_blocks, num_threads, 0,stream1>>>(
+    compute_chargesQij_kernel<<<num_blocks, num_threads, 0 >>>(//,stream1>>>(
         thrust::raw_pointer_cast(chargesQij.data()),
         thrust::raw_pointer_cast(points_device.data()),
         thrust::raw_pointer_cast(points_device.data() + num_points),

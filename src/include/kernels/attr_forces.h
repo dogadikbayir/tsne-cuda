@@ -16,7 +16,7 @@
 namespace tsnecuda {
 
 void ComputeAttractiveForces(
-                    cudaStream_t stream2,
+                    //cudaStream_t stream2,
                     tsnecuda::GpuOptions &gpu_opt,
                     cusparseHandle_t &handle,
                     cusparseMatDescr_t &descr,

@@ -38,11 +38,8 @@ void GaussianNormalizeDeviceVector(cublasHandle_t &handle,
 * @param d_input The vector to square
 * @param d_out The output vector
 */
-void SquareDeviceVector( thrust::device_vector<float> &d_out,
-        const thrust::device_vector<float> &d_input);
 void SquareDeviceVector(thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input);
-
 
 /**
 * @brief Take the square root of a vector element-wise
@@ -52,9 +49,6 @@ void SquareDeviceVector(thrust::device_vector<float> &d_out,
 */
 void SqrtDeviceVector(thrust::device_vector<float> &d_out,
         const thrust::device_vector<float> &d_input);
-void SqrtDeviceVector( thrust::device_vector<float> &d_out,
-        const thrust::device_vector<float> &d_input);
-
 
 /**
  * @brief Compute the L2 Norm of a device vector
@@ -105,31 +99,11 @@ void SymmetrizeMatrix(cusparseHandle_t &handle,
         const int num_neighbors);
 
 __global__
-void permuteCooKernel(volatile int * __restrict__ coo_indices,
-                                      const int * __restrict__ row_ptr,
-                                      const int * __restrict__ col_ind,
-                                      const int * __restrict__ perm,
-                                      const int * __restrict__ perm_new,
-                                      const int num_points,
-                                      const int num_nonzero);
-
-__global__
-void invertPermKernel(volatile int * __restrict__ perm_new, const int * __restrict__ perm, const int num_points);
-__global__
 void Csr2CooKernel(volatile int * __restrict__ coo_indices,
                              const int * __restrict__ pij_row_ptr,
                              const int * __restrict__ pij_col_ind,
                              const int num_points,
                              const int num_nonzero);
-
-void permuteCoo(tsnecuda::GpuOptions &gpu_opt,
-                                thrust::device_vector<int> &coo_indices,
-                                thrust::device_vector<int> &pij_row_ptr_device,
-                                thrust::device_vector<int> &pij_col_ind_device,
-                                thrust::device_vector<int> &perm,
-                                thrust::device_vector<int> &perm_new,
-                                const int num_points,
-                                const int num_nonzero);
 
 void Csr2Coo(                tsnecuda::GpuOptions &gpu_opt,
                              thrust::device_vector<int> &coo_indices,

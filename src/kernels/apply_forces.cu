@@ -57,8 +57,7 @@ void IntegrationKernel(
    }
 }
 
-void tsnecuda::ApplyForces(
-                                tsnecuda::GpuOptions &gpu_opt,
+void tsnecuda::ApplyForces(tsnecuda::GpuOptions &gpu_opt,
                                 thrust::device_vector<float> &points,
                                 thrust::device_vector<float> &attr_forces,
                                 thrust::device_vector<float> &rep_forces,
@@ -72,7 +71,7 @@ void tsnecuda::ApplyForces(
                                 const int num_blocks)
 {
     IntegrationKernel<<<num_blocks * gpu_opt.integration_kernel_factor,
-                                  gpu_opt.integration_kernel_threads,0 >>>(// ,stream2>>>(
+                                  gpu_opt.integration_kernel_threads>>>(
                     thrust::raw_pointer_cast(points.data()),
                     thrust::raw_pointer_cast(attr_forces.data()),
                     thrust::raw_pointer_cast(rep_forces.data()),
@@ -80,5 +79,61 @@ void tsnecuda::ApplyForces(
                     thrust::raw_pointer_cast(old_forces.data()),
                     eta, normalization, momentum, exaggeration,
                     num_points);
-    //GpuErrorCheck(cudaStreamSynchronize(stream2));
+    GpuErrorCheck(cudaDeviceSynchronize());
+}
+
+void tsnecuda::find_min_max(thrust::device_vector<float> &dev_vec, float *min, float *max){
+      thrust::pair<thrust::device_vector<float>::iterator,thrust::device_vector<float>::iterator> tuple;
+      tuple = thrust::minmax_element(dev_vec.begin(),dev_vec.end());
+      *min = *(tuple.first);
+      *max = *tuple.second;
+}
+
+__global__
+void histLocalKernel(const float * __restrict__ points,
+                     int * __restrict__ histogram,
+                     const int side, 
+                     const float step_size,
+                     const int num_points )
+{
+  register int TID, ih, jh, h_id;
+  register float ip, jp;
+
+  TID = blockDim.x * blockIdx.x + threadIdx.x;
+  
+  if(TID >= num_points) {
+    return;
+  }
+  
+  ip = points[TID]; jp = points[TID+num_points];
+  
+  ih = int(ip/step_size);
+  jh = int(jp/step_size); 
+  
+  h_id = (side*ih) + jh;
+  atomicAdd(histogram + h_id, 1);
+}
+
+
+
+void tsnecuda::CreateHistogram(
+                               thrust::device_vector<float> &points,
+                               const int side,
+                               const int num_points,
+                               thrust::device_vector<int> &histogram)
+{
+  float maxel, minel;
+
+  find_min_max(points, &minel, &maxel );
+
+  float step_size = (maxel-minel) / side;
+  
+  //int numBlocks = int(num_points/1024) + 1;
+  const int BLOCKSIZE = 1024;
+  const int NBLOCKS = iDivUp(num_points, BLOCKSIZE);
+  histLocalKernel<<<NBLOCKS,BLOCKSIZE>>>(thrust::raw_pointer_cast(points.data()),
+                                thrust::raw_pointer_cast(histogram.data()),
+                                side,
+                                step_size, num_points );
+
 }

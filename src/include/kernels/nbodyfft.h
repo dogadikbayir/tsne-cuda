@@ -11,7 +11,6 @@
 namespace tsnecuda {
 
 void PrecomputeFFT2D(
-        //cudaStream_t stream1,
         cufftHandle &plan_kernel_tilde,
         float x_max,
         float x_min,
@@ -25,7 +24,6 @@ void PrecomputeFFT2D(
         thrust::device_vector<thrust::complex<float> > &fft_kernel_tilde_device);
 
 void NbodyFFT2D(
-    //cudaStream_t stream1,
     cufftHandle &plan_dft,
     cufftHandle &plan_idft,
     int N,

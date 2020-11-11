@@ -8,7 +8,6 @@
 namespace tsnecuda {
 
 float ComputeRepulsiveForces(
-    //cudaStream_t stream1,
     thrust::device_vector<float> &repulsive_forces_device,
     thrust::device_vector<float> &normalization_vec_device,
     thrust::device_vector<float> &points_device,
@@ -17,7 +16,6 @@ float ComputeRepulsiveForces(
     const int n_terms);
 
 void ComputeChargesQij(
-    //cudaStream_t stream1,
     thrust::device_vector<float> &chargesQij,
     thrust::device_vector<float> &points_device,
     const int num_points,

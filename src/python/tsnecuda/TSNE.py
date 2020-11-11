@@ -30,7 +30,7 @@ TsneConfig = namedtuple(
      'post_exaggeration_momentum', 'theta', 'epssq', 'min_gradient_norm', 'initialization_type',
      'preinit_data', 'dump_points', 'dump_file', 'dump_interval', 'use_interactive',
      'viz_server', 'viz_timeout', 'verbosity', 'print_interval', 'gpu_device', 'return_style',
-     'num_snapshots', 'reorder', 'reopt', 'kNumCellsToProbe'])
+     'num_snapshots', 'reorder', 'reopt', 'side', 'step_freq', 'log', 'avg_freq'])
 
 
 class TSNE(object):
@@ -61,13 +61,16 @@ class TSNE(object):
                  viz_server="tcp://localhost:5556",
                  dump_points=False,
                  dump_file="dump.txt",
-                 dump_interval=100,
+                 dump_interval=1,
                  print_interval=10,
                  device=0,
                  magnitude_factor=5,
-                 reorder=1,
+                 reorder=0,
                  reopt=0,
-                 kNumCellsToProbe=2,):
+                 side=200,
+                 step_freq=20,
+                 log=0,
+                 avg_freq=10,):
         """Initialization method for barnes hut T-SNE class.
         """
 
@@ -92,10 +95,12 @@ class TSNE(object):
         self.metric = metric
         self.init = init
         self.verbosity = int(verbose)
-        self.reorder = int(reorder)
-        self.reopt = int(reopt)
-        self.kNumCellsToProbe = int(kNumCellsToProbe)
-
+        self.reorder=int(reorder)
+        self.reopt=int(reopt)
+        self.side=int(side)
+        self.step_freq=int(step_freq)
+        self.log=int(log)
+        self.avg_freq=int(avg_freq)
         # Initialize non-sklearn variables
         self.num_neighbors = int(num_neighbors)
         self.force_magnify_iters = int(force_magnify_iters)
@@ -166,7 +171,11 @@ class TSNE(object):
             num_snapshots=c_int,
             reorder=c_int,
             reopt=c_int,
-            kNumCellsToProbe=c_int
+            side=c_int,
+            step_freq=c_int,
+            log=c_int,
+            avg_freq=c_int
+
         )
 
         self._lib.pymodule_tsne.argtypes = list(tsne_argtypes)
@@ -237,7 +246,10 @@ class TSNE(object):
             num_snapshots=c_int(self.num_snapshots),
             reorder=c_int(self.reorder),
             reopt=c_int(self.reopt),
-            kNumCellsToProbe=c_int(self.kNumCellsToProbe)
+            side=c_int(self.side),
+            step_freq=c_int(self.step_freq),
+            log=c_int(self.log),
+            avg_freq=c_int(self.avg_freq)
         )
 
         return tsne_args

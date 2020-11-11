@@ -91,8 +91,7 @@ void PairwiseDistance(cublasHandle_t &handle,
 void KNearestNeighbors(tsnecuda::GpuOptions& gpu_opt, int64_t* indices, float* distances,
         const float* const points,
         const int num_dims, const int num_points,
-        const int num_near_neighbots,
-        const int kNumCellsToProbe);
+        const int num_near_neighbots);
 
 __global__
 void PostprocessNeighborIndicesKernel(

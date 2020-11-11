@@ -4,18 +4,10 @@
 
 #include "include/fit_tsne.h"
 #include <chrono>
-#include <cstdlib>
-#include <string>
 
-#define START_IL_REORDER() startReorder = std::chrono::high_resolution_clock::now();
-
-#define END_IL_REORDER(x) endReorder = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(endReorder-startReorder); x += duration; total_time += duration;
 
 #define START_IL_TIMER() start = std::chrono::high_resolution_clock::now();
-
 #define END_IL_TIMER(x) stop = std::chrono::high_resolution_clock::now(); duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); x += duration; total_time += duration;
-
-
 #define PRINT_IL_TIMER(x) std::cout << #x << ": " << ((float) x.count()) / 1000000.0 << "s" << std::endl
 
 #define CHECK_CUSPARSE(func)                                                   \
@@ -171,7 +163,6 @@ void tsnecuda::save_coo(std::string filename, thrust::device_vector<T> device_ve
     save_cpu(filename, h_coo, size_coo*2);
     
 }
-
 //Split string
 std::vector<std::string> tsnecuda::split (std::string s, std::string delimiter) {
     size_t pos_start = 0, pos_end, delim_len = delimiter.length();
@@ -222,13 +213,16 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     auto _time_attr = duration;
     auto _time_apply_forces = duration;
     auto _time_map_points = duration;
+    auto _time_hist1 = duration;
+    auto _time_hist2 = duration;
+    auto _time_diff_hist = duration;
 
     // Check the validity of the options file
     if (!opt.validate()) {
         std::cout << "E: Invalid options file. Terminating." << std::endl;
         return;
     }
-	std::cout << "Start" << std::endl;
+
     START_IL_TIMER();
 
     if (opt.verbosity > 0) {
@@ -240,19 +234,13 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     CublasSafeCall(cublasCreate(&dense_handle));
     cusparseHandle_t sparse_handle;
     CusparseSafeCall(cusparseCreate(&sparse_handle));
-    std::cout << "Created cublas handle" << std::endl;
+
     // Set CUDA device properties
     const int num_blocks = gpu_opt.sm_count;
 
     // Construct sparse matrix descriptor
     cusparseMatDescr_t sparse_matrix_descriptor;
-
-    //cusparseDnMatDescr_t dense_pts;
-    //cusparseDnMatDescr_t dense_pijqij;
-
     cusparseCreateMatDescr(&sparse_matrix_descriptor);
-        
-    
     cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
     cusparseSetMatIndexBase(sparse_matrix_descriptor,CUSPARSE_INDEX_BASE_ZERO);
 
@@ -293,23 +281,18 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         std::cout << "done.\nKNN Computation... " << std::flush;
     }
     // Compute approximate K Nearest Neighbors and squared distances
-    tsnecuda::util::KNearestNeighbors(gpu_opt, knn_indices,
-        knn_squared_distances, high_dim_points, high_dim, num_points,
-        num_neighbors, opt.kNumCellsToProbe);
-    END_IL_TIMER(_time_knn);
-    START_IL_TIMER();
+    tsnecuda::util::KNearestNeighbors(gpu_opt, knn_indices, knn_squared_distances, high_dim_points, high_dim, num_points, num_neighbors);
     thrust::device_vector<long> knn_indices_long_device(knn_indices, knn_indices + num_points * num_neighbors);
     thrust::device_vector<int> knn_indices_device(num_points * num_neighbors);
     tsnecuda::util::PostprocessNeighborIndices(gpu_opt, knn_indices_device, knn_indices_long_device,
                                                         num_points, num_neighbors);
-    END_IL_TIMER(_time_knn2);
-    START_IL_TIMER();
+
     // Max-norm the distances to avoid exponentiating by large numbers
     thrust::device_vector<float> knn_squared_distances_device(knn_squared_distances,
                                             knn_squared_distances + (num_points * num_neighbors));
     tsnecuda::util::MaxNormalizeDeviceVector(knn_squared_distances_device);
 
-    END_IL_TIMER(_time_normknn);
+    END_IL_TIMER(_time_knn);
     START_IL_TIMER();
 
     if (opt.verbosity > 0) {
@@ -327,7 +310,6 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     knn_indices_long_device.clear();
     knn_indices_long_device.shrink_to_fit();
     delete[] knn_squared_distances;
-
     delete[] knn_indices;
 
     // Symmetrize the pij matrix
@@ -339,15 +321,14 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                         opt.magnitude_factor, num_points, num_neighbors);
 
     const int num_nonzero = sparse_pij_device.size();
-        // Clean up memory
+
+    // Clean up memory
     knn_indices_device.clear();
     knn_indices_device.shrink_to_fit();
     pij_non_symmetric_device.clear();
     pij_non_symmetric_device.shrink_to_fit();
 
     // Declare memory
-
-    //thrust::device_vector<float> pijqij(sparse_pij_device.size());
     thrust::device_vector<float> repulsive_forces_device(opt.num_points * 2, 0);
     thrust::device_vector<float> attractive_forces_device(opt.num_points * 2, 0);
     thrust::device_vector<float> gains_device(opt.num_points * 2, 1);
@@ -356,21 +337,14 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     thrust::device_vector<float> ones_device(opt.num_points * 2, 1); // This is for reduce summing, etc.
     thrust::device_vector<int> coo_indices_device(sparse_pij_device.size()*2);
 
-    //tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
-      //                      pij_col_ind_device, num_points, num_nonzero);
+    tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
+                            pij_col_ind_device, num_points, num_nonzero);
 
     END_IL_TIMER(_time_symmetry);
     START_IL_TIMER();
-    
-        
-    
-    
 
     if (opt.verbosity > 0) {
         std::cout << "done.\nInitializing low dim points... " << std::flush;
-        //std::ifstream re_pij;
-        //re_pij.open("./re_pij.txt");
-
     }
 
     // Initialize Low-Dim Points
@@ -381,7 +355,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     std::normal_distribution<float> distribution1(0.0, 1.0);
     thrust::host_vector<float> h_points_device(num_points * 2);
 
-    
+
     // Initialize random noise vector
     for (int i = 0; i < h_points_device.size(); i++) h_points_device[i] = 0.001 * distribution1(generator);
     thrust::copy(h_points_device.begin(), h_points_device.end(), random_vector_device.begin());
@@ -420,57 +394,9 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.verbosity > 0) {
         std::cout << "done.\nInitializing CUDA memory... " << std::flush;
     }
-    
-    //Define the cuSparse matrices
-    //
-    //Create the cuSparse matrix (CSR)
-    //cusparseCreateMatDescr(&sparse_matrix_descriptor);
-    //cusparseSetMatType(sparse_matrix_descriptor, CUSPARSE_MATRIX_TYPE_GENERAL);
-    //cusparseSetMatIndexBase(sparse_matrix_descriptor,
-      //  CUSPARSE_INDEX_BASE_ZERO);
-    
-    
-      float *h_pij_vals2 = (float *)malloc((num_nonzero)*sizeof(float));
-      //h_pij_vals = thrust::raw_pointer_cast(sparse_pij_device.data());
-      cudaMemcpy(h_pij_vals2, thrust::raw_pointer_cast(sparse_pij_device.data()), sizeof(float)*(num_nonzero), cudaMemcpyDeviceToHost);
-     
-      int *h_pij_row_ptr2 = (int *)malloc((num_points+1)*sizeof(int));
-      //h_pij_row_ptr = thrust::raw_pointer_cast(pij_row_ptr_device.data());
-      cudaMemcpy(h_pij_row_ptr2, thrust::raw_pointer_cast(pij_row_ptr_device.data()), sizeof(int)*(num_points+1), cudaMemcpyDeviceToHost);
-
-      int *h_pij_col_ind2 = (int *)malloc((num_nonzero)*sizeof(int));
-      //h_pij_col_ind = thrust::raw_pointer_cast(pij_col_ind_device.data());
-      cudaMemcpy(h_pij_col_ind2, thrust::raw_pointer_cast(pij_col_ind_device.data()), sizeof(int)*(num_nonzero), cudaMemcpyDeviceToHost);
-
-    std::ofstream vals_file;
-    std::ofstream row_file;
-    std::ofstream ind_file;
-    //vals_file.open("vals_" + std::to_string(opt.num_points));
-    //row_file.open("rows_" + std::to_string(opt.num_points));
-    //ind_file.open("ind_" + std::to_string(opt.num_points));
-/*
-      for(int i=0; i<num_nonzero; i++){
-        vals_file << h_pij_vals2[i] << " ";
-      }
-      for(int i=0; i<num_points+1; i++){
-        row_file << h_pij_row_ptr2[i] << " ";
-      }
-      for(int i=0; i<num_nonzero; i++){
-        ind_file << h_pij_col_ind2[i] << " ";
-      }
-*/
-
-    //permute the pij sparse matrix
-    std::cout << "Num num_nonzero: " << num_nonzero << std::endl;
-    tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device, pij_col_ind_device, num_points, num_nonzero);
-    std::cout << "just after first csr2coo..." << std::endl;
-    //tsnecuda::save_coo("coo_before_", coo_indices_device, num_nonzero);
-    std::cout << "just after savecoo" << std::endl;
-    //START_IL_REORDER();
-//======
-//============================================================================================================== 
     //RCM Reorder
     if(opt.reorder==1) {
+      /*
       std::cout << "Entered RCM branch" << std::endl;
       START_IL_TIMER();
       int issym = 0;
@@ -540,7 +466,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       {
             h_pij_vals[j] = h_pij_vals[ h_mapBfromA[j] ];
       }
-	    END_IL_TIMER(_time_mapping);
+        END_IL_TIMER(_time_mapping);
            delete [] h_mapBfromA;
       delete [] h_Q;
       if (buffer_cpu) {free(buffer_cpu);}
@@ -569,6 +495,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
       pij_col_ind_device = col_temp;
       sparse_pij_device = vals_temp;
       END_IL_TIMER(_time_devicecopy);
+      */
       std::cout << "Completed permuting" << std::endl;
     }
    //Rabbit Order
@@ -651,30 +578,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
        START_IL_TIMER();
        checkCudaErrors(cusolverSpXcsrpermHost(sol_handle, num_points, num_points, num_nonzero, sparse_matrix_descriptor, h_pij_row_ptr, h_pij_col_ind, perm, perm, h_mapBfromA, buffer_cpu) );
        END_IL_TIMER(_time_reorder);
-      /*
-      //Map the points
-      float *h_pts = (float *)malloc(sizeof(float)*(num_points*2));
-      float *h_pts_B = (float *)malloc(sizeof(float)*(num_points*2));
-
-      cudaMemcpy(h_pts, thrust::raw_pointer_cast(points_device.data()), sizeof(float)*(num_points*2), cudaMemcpyDeviceToHost);
-
-
-      START_IL_TIMER();
-      for(int j = 0; j < num_points; j++) {
-            h_pts_B[2*j] = h_pts[2*perm[j]];
-            h_pts_B[2*j+1] = h_pts[2*perm[j]+1];      
-      }
       
-      std::vector<float> v_pts(h_pts_B, h_pts_B + (num_points*2));
-      if (h_pij_vals) {free(h_pij_vals);}
-      if (h_pts) {free(h_pts);}
-      if (h_pts_B) {free(h_pts_B);}
-
-      thrust::host_vector<float> pts_temp(v_pts);
-      points_device = pts_temp;
-
-      END_IL_TIMER(_time_map_points);
-	*/
        //Map the values
       START_IL_TIMER();
       for(int j = 0 ; j < num_nonzero ; j++)
@@ -714,8 +618,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
 
    }
-    //END_IL_REORDER(_time_tot_perm);
-    std::cout << "Before nonzero2" << std::endl;
+
+   std::cout << "Before nonzero2" << std::endl;
     if(opt.reorder != 9){ 
       std::cout << "before 2. csr2coo" << std::endl;
       tsnecuda::util::Csr2Coo(gpu_opt, coo_indices_device, pij_row_ptr_device,
@@ -733,8 +637,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     END_IL_TIMER(_time_hostcopy);
 
     START_IL_TIMER();
-   
-    //tsnecuda::save_coo("coo_after_", coo_indices_device, num_nonzero);
+
     // FIT-TNSE Parameters
     int n_interpolation_points = 3;
     // float intervals_per_integer = 1;
@@ -812,10 +715,6 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     CufftSafeCall(cufftCreate(&plan_kernel_tilde));
     CufftSafeCall(cufftCreate(&plan_dft));
     CufftSafeCall(cufftCreate(&plan_idft));
-    
-    //Set the cufft plans to stream1
-    //cudaStream_t stream1;
-    //cudaStreamCreateWithFlags(&stream1, cudaStreamNonBlocking);
 
     size_t work_size, work_size_dft, work_size_idft;
     int fft_dimensions[2] = {n_fft_coeffs, n_fft_coeffs};
@@ -829,12 +728,17 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                     NULL, 1, n_fft_coeffs * n_fft_coeffs,
                                     CUFFT_C2R, n_terms, &work_size_idft));
 
-    //CufftSafeCall(cufftSetStream(plan_kernel_tilde));//, stream1));
-    //CufftSafeCall(cufftSetStream(plan_dft, stream1));
-    //CufftSafeCall(cufftSetStream(plan_idft, stream1));
 
 
-    
+    // Dump file
+        /*
+    if (opt.get_dump_points()) {
+        dump_file.open("iter_" + std::to_string(step+1) + "_" + std::to_string(opt.num_points);
+        host_ys = new float[num_points * 2];
+        //dump_file << num_points << " " << 2 << std::endl;
+    }
+    */
+
     #ifndef NO_ZMQ
         bool send_zmq = opt.get_use_interactive();
         zmq::context_t context(1);
@@ -877,33 +781,31 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     }
 
     END_IL_TIMER(_time_init_fft);
+    int side;
+    
+    side = opt.side;
+    //init the device histograms
+    std::vector<int> h_hist(side*side, 0);
+    thrust::device_vector<int> hist1(h_hist);
 
-    //create vector to record rep force computation time
-    std::vector<float> rep_force_times;
+    //std::vector<int> h_hist2(side*side, 0);
+    thrust::device_vector<int> hist2(h_hist);
+
+    float acc_diff_norm = 0.0f;
     // Support for infinite iteration
-    float time_mul, time_firstSPDM, time_secondSPDM, time_pijkern = 0.0;
-    
-    
-    //TRAINING
-    //LOOP/////////////////////////////////////////////////////////////////////////
-    
-        
-    //cudaStream_t stream2;
-    //cudaStreamCreateWithFlags(&stream2, cudaStreamNonBlocking);
-    startIter = std::chrono::high_resolution_clock::now();
     for (size_t step = 0; step != opt.iterations; step++) {
-        
+
         START_IL_TIMER();
         float fill_value = 0;
         thrust::fill(w_coefficients_device.begin(), w_coefficients_device.end(), fill_value);
-        thrust::fill( potentialsQij_device.begin(), potentialsQij_device.end(), fill_value);
+        thrust::fill(potentialsQij_device.begin(), potentialsQij_device.end(), fill_value);
         // Setup learning rate schedule
         if (step == opt.force_magnify_iters) {
             momentum = opt.post_exaggeration_momentum;
             attr_exaggeration = 1.0f;
         }
         END_IL_TIMER(_time_other);
-        
+
 
 
         // Prepare the terms that we'll use to compute the sum i.e. the repulsive forces
@@ -913,7 +815,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
 
         // Compute Minimax elements
         START_IL_TIMER();
-        auto minimax_iter = thrust::minmax_element( points_device.begin(), points_device.end());
+        auto minimax_iter = thrust::minmax_element(points_device.begin(), points_device.end());
         float min_coord = minimax_iter.first[0];
         float max_coord = minimax_iter.second[0];
 
@@ -921,7 +823,6 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         // auto n_boxes_per_dim = static_cast<int>(fmax(min_num_intervals, (max_coord - min_coord) / intervals_per_integer));
 
         tsnecuda::PrecomputeFFT2D(
-            //stream1,
             plan_kernel_tilde, max_coord, min_coord, max_coord, min_coord, n_boxes_per_dim, n_interpolation_points,
             box_lower_bounds_device, box_upper_bounds_device, kernel_tilde_device,
             fft_kernel_tilde_device);
@@ -931,9 +832,8 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         END_IL_TIMER(_time_precompute_2d);
         START_IL_TIMER();
 
-        
+
         tsnecuda::NbodyFFT2D(
-            //stream1,
             plan_dft, plan_idft,
             N, n_terms, n_boxes_per_dim, n_interpolation_points,
             fft_kernel_tilde_device, n_total_boxes,
@@ -946,9 +846,6 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             y_interpolated_values_device, potentialsQij_device);
 
         END_IL_TIMER(_time_nbodyfft);
-
-        PRINT_IL_TIMER(_time_nbodyfft);
-        rep_force_times.push_back(((float) duration.count()) / 1000000.0);
         START_IL_TIMER();
 
         // Make the negative term, or F_rep in the equation 3 of the paper
@@ -959,37 +856,35 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         END_IL_TIMER(_time_norm);
         START_IL_TIMER();
 
-               // Calculate Attractive Forces            
-        tsnecuda::ComputeAttractiveForces(
-                                              //stream2,
-                                              gpu_opt,
+
+        // Calculate Attractive Forces
+        tsnecuda::ComputeAttractiveForces(gpu_opt,
                                               sparse_handle,
                                               sparse_matrix_descriptor,
                                               attractive_forces_device,
-					                                    //pijqij,
                                               sparse_pij_device,
-                                              //d_sp_pij_re,
                                               pij_row_ptr_device,
                                               pij_col_ind_device,
                                               coo_indices_device,
-                                              //d_coo_re,
                                               points_device,
                                               ones_device,
                                               num_points,
-                                              time_firstSPDM,
-                                              time_secondSPDM,
-                                              time_mul,
-                                              time_pijkern,
                                               num_nonzero);
 
         END_IL_TIMER(_time_attr);
-        START_IL_TIMER();
         
-        //GpuErrorCheck( cudaStreamSynchronize(stream1)); //ensure rep forces are ready
+        if((step+1) % (opt.step_freq) == 0){
+          START_IL_TIMER();
+          tsnecuda::CreateHistogram(points_device,
+                                  side,
+                                  num_points,
+                                  hist1);
+          END_IL_TIMER(_time_hist1); 
+        }
+        
 
         // Apply Forces
-        tsnecuda::ApplyForces(    //stream2,
-                                  gpu_opt,
+        tsnecuda::ApplyForces(gpu_opt,
                                   points_device,
                                   attractive_forces_device,
                                   repulsive_forces_device,
@@ -1001,30 +896,89 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
                                   attr_exaggeration,
                                   num_points,
                                   num_blocks);
-        END_IL_TIMER(_time_apply_forces);
+
         // // Compute the gradient norm
-        tsnecuda::util::SquareDeviceVector( attractive_forces_device, old_forces_device);
-        thrust::transform( attractive_forces_device.begin(), attractive_forces_device.begin()+num_points,
+        tsnecuda::util::SquareDeviceVector(attractive_forces_device, old_forces_device);
+        thrust::transform(attractive_forces_device.begin(), attractive_forces_device.begin()+num_points,
                           attractive_forces_device.begin()+num_points, attractive_forces_device.begin(),
                           thrust::plus<float>());
-        tsnecuda::util::SqrtDeviceVector( attractive_forces_device, attractive_forces_device);
+        tsnecuda::util::SqrtDeviceVector(attractive_forces_device, attractive_forces_device);
         float grad_norm = thrust::reduce(
             attractive_forces_device.begin(), attractive_forces_device.begin() + num_points,
             0.0f, thrust::plus<float>()) / num_points;
-        thrust::fill( attractive_forces_device.begin(), attractive_forces_device.end(), 0.0f);
-        //END_IL_TIMER(_time_apply_forces);
-        
+        thrust::fill(attractive_forces_device.begin(), attractive_forces_device.end(), 0.0f);
+
         if (grad_norm < opt.min_gradient_norm) {
             if (opt.verbosity >= 1) std::cout << "Reached minimum gradient norm: " << grad_norm << std::endl;
             break;
         }
-        
+
         if (opt.verbosity >= 1 && step % opt.print_interval == 0) {
             std::cout << "[Step " << step << "] Avg. Gradient Norm: " << grad_norm << std::endl;
         }
+        if ((step + 1) % 1000 == 0){
+         PRINT_IL_TIMER(_time_compute_charges);
+        PRINT_IL_TIMER(_time_precompute_2d);
+        PRINT_IL_TIMER(_time_nbodyfft);
+        PRINT_IL_TIMER(_time_norm);
+        PRINT_IL_TIMER(_time_attr);
+        PRINT_IL_TIMER(_time_apply_forces);
+        PRINT_IL_TIMER(_time_other);
+        PRINT_IL_TIMER(_time_hist1);
+        PRINT_IL_TIMER(_time_hist2);
+        PRINT_IL_TIMER(_time_diff_hist);
+        PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_perm);
+        PRINT_IL_TIMER(total_time);
+
+        }
+        END_IL_TIMER(_time_apply_forces);
+
+        if((step+1) % opt.step_freq == 0){
+          START_IL_TIMER();
+          tsnecuda::CreateHistogram(points_device,
+                                  side,
+                                  num_points,
+                                  hist2);
+          END_IL_TIMER(_time_hist2);
+        
+          START_IL_TIMER();
+          //Compute the difference
+          thrust::transform(hist2.begin(),
+                          hist2.end(),
+                          hist1.begin(),
+                          hist2.begin(),
+                          thrust::minus<int>());
+        
+          END_IL_TIMER(_time_diff_hist);
+        
+          float diff_norm = std::sqrt(thrust::transform_reduce(hist2.begin(),
+                     hist2.end(), tsnecuda::util::FunctionalSquare(), 0,
+                     thrust::plus<int>()));
+        
+          diff_norm = diff_norm / num_points;
+          
+          if(opt.log==1){
+            diff_norm = std::log(diff_norm);
+          }
+          if((step+1)%opt.avg_freq == 0){
+            std::cout << "avg diff_norm("<< opt.avg_freq << " steps) : "<< acc_diff_norm/opt.avg_freq << std::endl;
+            acc_diff_norm = 0.0f;
+          }
+          else{
+            acc_diff_norm += diff_norm;
+          }
+          
+          
+          thrust::fill( hist1.begin(), hist1.end(), 0);
+          thrust::fill( hist2.begin(), hist2.end(), 0);
+        }
+        
 
         
 
+        thrust::fill( attractive_forces_device.begin(), attractive_forces_device.end(), 0.0f);
+        
         #ifndef NO_ZMQ
             if (send_zmq) {
             zmq::message_t message(sizeof(float)*opt.num_points*2);
@@ -1039,36 +993,19 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
             send_zmq = res;
             }
         #endif
-	       float *host_ys = nullptr;
-         std::ofstream dump_file;
-        
-        if((step+1) % 1000){
-          PRINT_IL_TIMER(_time_init_low_dim);
-        PRINT_IL_TIMER(_time_init_fft);
-        PRINT_IL_TIMER(_time_compute_charges);
-        PRINT_IL_TIMER(_time_precompute_2d);
-        PRINT_IL_TIMER(_time_nbodyfft);
-        PRINT_IL_TIMER(_time_norm);
-        PRINT_IL_TIMER(_time_attr);
-        PRINT_IL_TIMER(_time_apply_forces);
-        PRINT_IL_TIMER(_time_other);
-        PRINT_IL_TIMER(total_time);
+          float *host_ys = nullptr;
+          std::ofstream dump_file;
 
-        }
-        if (opt.get_dump_points() && (step+1) % opt.get_dump_interval() == 0) {
-	    // Dump file
-    	    
-        	dump_file.open("iter_" + std::to_string(step+1) + "_mode_" + std::to_string(opt.reorder) + "_pts_Y_" + std::to_string(opt.num_points));
-        	host_ys = new float[num_points * 2];
-        	//dump_file << num_points << " " << 2 << std::endl;
-    	    
+        if (opt.get_dump_points() && (step % opt.get_dump_interval() == 0)) {
+            dump_file.open("iter_" + std::to_string(step+1) + "_" + std::to_string(opt.num_points));
+            host_ys = new float[num_points * 2];
 
             thrust::copy(points_device.begin(), points_device.end(), host_ys);
+            #pragma omp parallel for
             for (int i = 0; i < opt.num_points; i++) {
                 dump_file << host_ys[i] << " " << host_ys[i + num_points] << std::endl;
             }
-        dump_file.close();
-        
+            dump_file.close();   
         }
 
         // // Handle snapshoting
@@ -1080,11 +1017,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         }
 
     }
-   
-    stopIter = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stopIter - startIter);
-    
-    _time_iter = duration;
+
     CufftSafeCall(cufftDestroy(plan_kernel_tilde));
     CufftSafeCall(cufftDestroy(plan_dft));
     CufftSafeCall(cufftDestroy(plan_idft));
@@ -1092,16 +1025,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.verbosity > 0) {
         PRINT_IL_TIMER(_time_initialization);
         PRINT_IL_TIMER(_time_knn);
-        PRINT_IL_TIMER(_time_knn2);
-        PRINT_IL_TIMER(_time_normknn);
         PRINT_IL_TIMER(_time_symmetry);
-        PRINT_IL_TIMER(_time_perm);
-        PRINT_IL_TIMER(_time_reorder);
-        PRINT_IL_TIMER(_time_reord_buff);
-        PRINT_IL_TIMER(_time_mapping);
-        PRINT_IL_TIMER(_time_hostcopy);
-        PRINT_IL_TIMER(_time_devicecopy);
-        PRINT_IL_TIMER(_time_tot_perm);
         PRINT_IL_TIMER(_time_init_low_dim);
         PRINT_IL_TIMER(_time_init_fft);
         PRINT_IL_TIMER(_time_compute_charges);
@@ -1111,21 +1035,17 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
         PRINT_IL_TIMER(_time_attr);
         PRINT_IL_TIMER(_time_apply_forces);
         PRINT_IL_TIMER(_time_other);
-        PRINT_IL_TIMER(_time_iter);
+        PRINT_IL_TIMER(_time_hist1);
+        PRINT_IL_TIMER(_time_hist2);
+        PRINT_IL_TIMER(_time_diff_hist);
+        PRINT_IL_TIMER(_time_reorder);
+        PRINT_IL_TIMER(_time_perm);
         PRINT_IL_TIMER(total_time);
-
-        std::cout << "time_firstSPDM" << ": " << (time_firstSPDM) << "s" << std::endl;
-        std::cout << "time_secondSPDM" << ": " << (time_secondSPDM) << "s" << std::endl;
-        std::cout << "time_mul" << ": " << (time_mul) << "s" << std::endl;
-        std::cout << "time_pijkern" << ": " << (time_pijkern ) << "s" << std::endl;
-
-
     }
 
 
     // Clean up the dump file if we are dumping points
-   
-    // Handle a once off return type
+        // Handle a once off return type
     if (opt.return_style == tsnecuda::RETURN_STYLE::ONCE && opt.return_data != nullptr) {
       thrust::copy(points_device.begin(), points_device.end(), opt.return_data);
     }
@@ -1134,24 +1054,7 @@ void tsnecuda::RunTsne(tsnecuda::Options &opt,
     if (opt.return_style == tsnecuda::RETURN_STYLE::SNAPSHOT && opt.return_data != nullptr) {
       thrust::copy(points_device.begin(), points_device.end(), snap_num*opt.num_points*2 + opt.return_data);
     }
-    /*
-    if (opt.verbosity > 1) {
-        std::ofstream reptimes_file;
-        reptimes_file.open("./reptimes_" + std::to_string(opt.num_points/1000) + ".txt");
-        //dump the values of sparse array Pij
-        for (const auto &e : rep_force_times) reptimes_file << e << " ";
-        //dump the indices of the values of Pij (COO format)
-        //for (const auto &e : stl_pij_coo) pij_file << e << " ";
-        //dump reordered values of sparse array pij
-        //for(const auto &e : stl_reordered_pij) pij_file << e << " ";
-        //dump the reordered indices of the values of Pij
-        //for(const auto &e : stl_reordered_coo) pij_file << e << " ";
 
-        reptimes_file.close();
-
-    }
-    */
-   
     // Return some final values
     opt.trained = true;
     opt.trained_norm = normalization;

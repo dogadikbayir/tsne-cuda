@@ -16,8 +16,13 @@
 
 namespace tsnecuda {
 
+void find_min_max(thrust::device_vector<float> &dev_vec, float *min, float *max);
+
+void CreateHistogram(thrust::device_vector<float> &points,
+                     const int side,
+                     const int num_points,
+                     thrust::device_vector<int> &histogram);
 void ApplyForces(
-                    
                     tsnecuda::GpuOptions &gpu_opt,
                     thrust::device_vector<float> &points,
                     thrust::device_vector<float> &attr_forces,

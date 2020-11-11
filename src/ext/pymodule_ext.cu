@@ -35,7 +35,10 @@ void pymodule_tsne(float *result,
                    int num_snapshots,
                    int reorder,
                    int reopt,
-                   int kNumCellsToProbe)
+                   int side,
+                   int step_freq,
+                   int log,
+                   int avg_freq)
 {
     // Extract the dimensions of the points array
     ssize_t num_points = dims[0];
@@ -66,8 +69,11 @@ void pymodule_tsne(float *result,
     opt.print_interval = print_interval;
     opt.reorder = reorder;
     opt.reopt = reopt;
-    opt.kNumCellsToProbe = kNumCellsToProbe;
-
+    opt.side = side;
+    opt.step_freq = step_freq;
+    opt.log = log;
+    opt.avg_freq = avg_freq;
+    
     // Initialization
     switch (initialization_type) {
         case 0:

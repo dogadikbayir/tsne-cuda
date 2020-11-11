@@ -63,10 +63,14 @@ namespace tsnecuda {
             float* preinit_data = nullptr;
 
             // Verbosity control
-            int kNumCellsToProbe = 2;
             int verbosity = 20;
-            int reorder = 1;
+            int reorder = 0;
             int reopt = 0;
+            int side = 200;
+            int step_freq = 1;
+            int avg_freq = 10;
+
+            int log = 0;
             int print_interval= 10;
 
             // Return methods
@@ -94,7 +98,7 @@ namespace tsnecuda {
                     bool dump_points, int dump_interval,
                     RETURN_STYLE return_style, float* return_data, int num_snapshots,
                     bool use_interactive, std::string viz_server,
-                    int verbosity, int print_interval, int reorder, int reopt
+                    int verbosity, int print_interval, int reorder, int reopt, int side
                     ) :
                     points(points),
                     num_points(num_points),
@@ -125,7 +129,10 @@ namespace tsnecuda {
                     print_interval(print_interval),
                     reorder(reorder),
                     reopt(reopt),
-                    kNumCellsToProbe(kNumCellsToProbe)
+                    side(side),
+                    step_freq(step_freq),
+                    log(log),
+                    avg_freq(avg_freq)
                     {this->random_seed = time(NULL);}
 
             bool enable_dump(std::string filename, int interval = 1) {
@@ -196,9 +203,9 @@ namespace tsnecuda {
 
             // Set the device to be used
             cudaSetDevice(device);
-
+	    this->warp_size=32;
             // Set some base variables
-            this->warp_size=32;
+            this->warp_size = device_properties.warpSize;
             if (this->warp_size != 32){
                  std::cerr << "E: Device warp size not supported." << std::endl;
                  exit(1);
